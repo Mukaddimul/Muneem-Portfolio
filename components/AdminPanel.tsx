@@ -17,9 +17,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
   const [isLoadingInquiries, setIsLoadingInquiries] = useState(false);
   const [inquiryError, setInquiryError] = useState<{message: string, isMissingTable: boolean} | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const contentRef = useRef<HTMLDivElement>(null);
   const profilePicInputRef = useRef<HTMLInputElement>(null);
+  const coverPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const sections = [
     { id: 'general', label: 'General Info', icon: 'fa-id-card' },
@@ -30,6 +32,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
     { id: 'news', label: 'News Desk', icon: 'fa-newspaper' },
     { id: 'messages', label: 'Visitor Entries', icon: 'fa-inbox' },
   ];
+
+  const handleSaveClick = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSave(editData);
+    } catch (err) {
+      console.error("Save failed:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Utility to compress images to keep payload size small
   const compressImage = (base64: string, maxWidth: number, maxHeight: number, quality: number = 0.7): Promise<string> => {
@@ -189,6 +203,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
     }
   };
 
+  const handleCoverPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsProcessingImage(true);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        // Larger dimensions for cover photo but compressed for speed
+        const compressed = await compressImage(reader.result as string, 1600, 900, 0.6);
+        setEditData({ ...editData, profile: { ...editData.profile, coverPhoto: compressed } });
+        setIsProcessingImage(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const updateProject = (id: string, field: keyof Project, value: any) => {
     setEditData({ ...editData, projects: editData.projects.map(p => p.id === id ? { ...p, [field]: value } : p) });
   };
@@ -301,11 +330,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
   return (
     <div className="fixed inset-0 z-[100] bg-dark-900/98 backdrop-blur-3xl flex flex-col md:flex-row overflow-hidden animate-in fade-in duration-300">
       
-      {isProcessingImage && (
+      {(isProcessingImage || isSaving) && (
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-white font-bold text-xs uppercase tracking-widest">Optimizing Asset...</p>
+            <p className="text-white font-bold text-xs uppercase tracking-widest">
+              {isSaving ? "Syncing Workspace..." : "Optimizing Asset..."}
+            </p>
           </div>
         </div>
       )}
@@ -341,8 +372,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
         </nav>
 
         <div className="p-3 md:p-6 border-t border-slate-700/50 bg-dark-900/50 space-y-2 md:space-y-3 shrink-0">
-          <button onClick={() => onSave(editData)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 md:py-3.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2 md:gap-3">
-            <i className="fa-solid fa-floppy-disk"></i> Save Changes
+          <button 
+            onClick={handleSaveClick} 
+            disabled={isSaving}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 md:py-3.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2 md:gap-3 disabled:opacity-50"
+          >
+            {isSaving ? <i className="fa-solid fa-circle-notch animate-spin"></i> : <i className="fa-solid fa-floppy-disk"></i>}
+            {isSaving ? "Saving..." : "Save Changes"}
           </button>
           <div className="flex gap-2">
             <button onClick={onLogout} className="flex-1 md:w-full h-10 md:h-12 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-xl transition-all flex items-center justify-center border border-red-500/20 py-2.5 md:py-0">
@@ -362,15 +398,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
               <h3 className="text-xl md:text-3xl font-black text-white tracking-tighter uppercase">General Info</h3>
             </div>
             <div className="space-y-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-12">
+                {/* Avatar Section */}
                 <div className="space-y-4">
                   <label className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">Avatar</label>
-                  <div className="relative group cursor-pointer w-32 h-32" onClick={() => profilePicInputRef.current?.click()}>
-                    <img src={editData.profile.profilePic} className="w-full h-full object-cover rounded-[2rem] border-4 border-brand-500/30 p-1 bg-dark-800" />
-                    <input type="file" ref={profilePicInputRef} onChange={handleProfilePicUpload} className="hidden" accept="image/*" />
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="relative group cursor-pointer w-32 h-32" onClick={() => profilePicInputRef.current?.click()}>
+                      <img src={editData.profile.profilePic} className="w-full h-full object-cover rounded-[2rem] border-4 border-brand-500/30 p-1 bg-dark-800" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem] flex items-center justify-center">
+                        <i className="fa-solid fa-camera text-white"></i>
+                      </div>
+                      <input type="file" ref={profilePicInputRef} onChange={handleProfilePicUpload} className="hidden" accept="image/*" />
+                    </div>
+                    <button onClick={() => profilePicInputRef.current?.click()} className="text-[10px] text-brand-400 font-black uppercase tracking-widest hover:underline">Change Profile Pic</button>
+                  </div>
+                </div>
+
+                {/* Cover Photo Section */}
+                <div className="space-y-4">
+                  <label className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">Hero Cover Photo</label>
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="relative group cursor-pointer w-full h-32 md:h-40 bg-dark-800 rounded-2xl border-2 border-slate-700/50 overflow-hidden flex items-center justify-center" onClick={() => coverPhotoInputRef.current?.click()}>
+                      {editData.profile.coverPhoto ? (
+                        <img src={editData.profile.coverPhoto} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                      ) : (
+                        <i className="fa-solid fa-image text-4xl text-slate-700"></i>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <i className="fa-solid fa-upload text-white"></i>
+                      </div>
+                      <input type="file" ref={coverPhotoInputRef} onChange={handleCoverPhotoUpload} className="hidden" accept="image/*" />
+                    </div>
+                    <div className="flex gap-4">
+                      <button onClick={() => coverPhotoInputRef.current?.click()} className="text-[10px] text-brand-400 font-black uppercase tracking-widest hover:underline">Change Cover</button>
+                      {editData.profile.coverPhoto && (
+                        <button onClick={() => setEditData({ ...editData, profile: { ...editData.profile, coverPhoto: '' } })} className="text-[10px] text-red-500 font-black uppercase tracking-widest hover:underline">Remove</button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <input name="fullName" value={editData.profile.fullName} onChange={handleProfileChange} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-white focus:border-brand-500 outline-none" placeholder="Full Name" />
                 <input name="name" value={editData.profile.name} onChange={handleProfileChange} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-white focus:border-brand-500 outline-none" placeholder="Short Name" />
@@ -486,7 +554,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
                 <button onClick={() => deleteTimelineItem(t.id)} className="absolute top-6 right-6 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i className="fa-solid fa-trash"></i></button>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6">
-                  {/* Logo Upload for Timeline Item */}
                   <div className="space-y-4">
                     <label className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">Org/Institute Logo</label>
                     <div className="flex flex-col items-center gap-4">

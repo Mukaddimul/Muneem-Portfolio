@@ -29,15 +29,31 @@ const App: React.FC = () => {
 
   const [portfolioData, setPortfolioData] = useState<PortfolioData>(INITIAL_DATA);
 
+  // Helper for exponential backoff retries on network failures
+  const withRetry = async <T,>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err) {
+      if (retries <= 0 || (err instanceof TypeError && err.message === 'Failed to fetch' === false)) {
+        throw err;
+      }
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return withRetry(fn, retries - 1, delay * 2);
+    }
+  };
+
   // Sync data from Supabase
   useEffect(() => {
     const fetchPortfolioData = async () => {
       try {
-        const { data, error } = await supabase
-          .from('portfolio_content')
-          .select('content')
-          .eq('id', 'main_config')
-          .maybeSingle();
+        // Fix: Cast the response of withRetry to any to allow access to Supabase data and error properties
+        const { data, error } = (await withRetry(() => 
+          supabase
+            .from('portfolio_content')
+            .select('content')
+            .eq('id', 'main_config')
+            .maybeSingle()
+        )) as any;
 
         if (error) {
           const errorMsg = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
@@ -60,7 +76,6 @@ const App: React.FC = () => {
           }
           console.error("Supabase Connection Error:", errorMsg);
         } else if (!data) {
-          // Table exists but row is missing, attempt to seed
           console.log("Config row missing. Seeding initial data...");
           const { error: upsertError } = await supabase
             .from('portfolio_content')
@@ -80,7 +95,7 @@ const App: React.FC = () => {
         const catchMsg = (err && typeof err.message === 'string') 
           ? err.message 
           : (typeof err === 'string' ? err : JSON.stringify(err));
-        setErrorInfo({ message: catchMsg || "An unexpected connection error occurred." });
+        setErrorInfo({ message: catchMsg || "An unexpected connection error occurred. Check your internet." });
       } finally {
         setIsLoading(false);
       }
@@ -93,37 +108,43 @@ const App: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const persistData = async (newData: PortfolioData) => {
+  const persistData = async (newData: PortfolioData): Promise<boolean> => {
     setPortfolioData(newData);
+    let success = false;
     try {
-      const { error } = await supabase
-        .from('portfolio_content')
-        .upsert({ id: 'main_config', content: newData });
+      // Fix: Cast the result of withRetry to any to prevent property 'error' does not exist on type '{}'
+      const { error } = (await withRetry(() => 
+        supabase
+          .from('portfolio_content')
+          .upsert({ id: 'main_config', content: newData })
+      )) as any;
       
       if (error) {
-        console.error("Persistence Error:", error.message || JSON.stringify(error));
-        // Fallback to local storage if quota allows
-        try {
-          localStorage.setItem('portfolio_data_backup', JSON.stringify(newData));
-        } catch (e) {
-          console.warn("Local storage quota exceeded. Storing text-only snapshot.");
-          // Try to store a version without heavy images as a last resort
-          const simplified = { ...newData, news: newData.news.map(n => ({...n, image: undefined})) };
-          try {
-            localStorage.setItem('portfolio_data_backup', JSON.stringify(simplified));
-          } catch (e2) {
-            console.error("Failed even simplified backup.");
-          }
-        }
+        throw error;
       }
-    } catch (err) {
-      console.error("Persistence failure:", err);
+      success = true;
+    } catch (err: any) {
+      console.error("Persistence failure (Cloud):", err.message || err);
+      // Local fallback
+      try {
+        localStorage.setItem('portfolio_data_backup', JSON.stringify(newData));
+      } catch (e) {
+        const simplified = { ...newData, news: newData.news.map(n => ({...n, image: undefined})) };
+        try {
+          localStorage.setItem('portfolio_data_backup', JSON.stringify(simplified));
+        } catch (e2) {}
+      }
     }
+    return success;
   };
 
   const handleSave = async (newData: PortfolioData) => {
-    await persistData(newData);
-    setIsAdminOpen(false);
+    const success = await persistData(newData);
+    if (success) {
+      setIsAdminOpen(false);
+    } else {
+      alert("System could not sync with cloud due to a network error. Your changes are saved in local browser storage and will try to sync next time.");
+    }
   };
 
   const handleAdminClick = () => {
@@ -209,11 +230,7 @@ const App: React.FC = () => {
   id TEXT PRIMARY KEY,
   content JSONB NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Note: Tables are tracked automatically in modern Supabase, 
--- explicit Realtime publication setup is usually not required 
--- and may error if already configured.`}
+);`}
             </pre>
           </div>
         )}
@@ -238,7 +255,6 @@ const App: React.FC = () => {
 
   return (
     <div className="relative overflow-x-hidden min-h-screen">
-      {/* Decorative Background Blobs */}
       <div className="blob bg-brand-600 w-96 h-96 rounded-full top-0 left-0 -translate-x-1/2 -translate-y-1/2 print:hidden"></div>
       <div className="blob bg-purple-600 w-[500px] h-[500px] rounded-full top-1/2 right-0 translate-x-1/2 -translate-y-1/2 print:hidden"></div>
       <div className="blob bg-blue-600 w-96 h-96 rounded-full bottom-0 left-0 -translate-x-1/2 translate-y-1/2 print:hidden"></div>
