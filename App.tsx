@@ -24,7 +24,11 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorInfo, setErrorInfo] = useState<{ message: string; code?: string; isTableMissing?: boolean } | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return sessionStorage.getItem('is_admin_logged_in') === 'true';
+    try {
+      return sessionStorage.getItem('is_admin_logged_in') === 'true';
+    } catch (e) {
+      return false;
+    }
   });
 
   const [portfolioData, setPortfolioData] = useState<PortfolioData>(INITIAL_DATA);
@@ -33,10 +37,12 @@ const App: React.FC = () => {
   const withRetry = async <T,>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> => {
     try {
       return await fn();
-    } catch (err) {
-      if (retries <= 0 || (err instanceof TypeError && err.message === 'Failed to fetch' === false)) {
+    } catch (err: any) {
+      const isNetworkError = err instanceof TypeError || err.message?.includes('fetch') || err.message?.includes('NetworkError');
+      if (retries <= 0 || !isNetworkError) {
         throw err;
       }
+      console.warn(`Retrying Supabase operation... (${retries} attempts left)`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
@@ -46,14 +52,15 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchPortfolioData = async () => {
       try {
-        // Fix: Cast the response of withRetry to any to allow access to Supabase data and error properties
-        const { data, error } = (await withRetry(() => 
+        const result = (await withRetry(() => 
           supabase
             .from('portfolio_content')
             .select('content')
             .eq('id', 'main_config')
             .maybeSingle()
         )) as any;
+
+        const { data, error } = result;
 
         if (error) {
           const errorMsg = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
@@ -83,10 +90,8 @@ const App: React.FC = () => {
           
           if (upsertError) {
             console.error("Seeding failed:", upsertError.message || JSON.stringify(upsertError));
-            setPortfolioData(INITIAL_DATA);
-          } else {
-            setPortfolioData(INITIAL_DATA);
           }
+          setPortfolioData(INITIAL_DATA);
         } else if (data && data.content) {
           setPortfolioData(data.content);
         }
@@ -95,7 +100,10 @@ const App: React.FC = () => {
         const catchMsg = (err && typeof err.message === 'string') 
           ? err.message 
           : (typeof err === 'string' ? err : JSON.stringify(err));
-        setErrorInfo({ message: catchMsg || "An unexpected connection error occurred. Check your internet." });
+        
+        // Gracefully fallback to local initial data if network is unavailable
+        console.warn("Falling back to local initial data due to connection issues.");
+        setPortfolioData(INITIAL_DATA);
       } finally {
         setIsLoading(false);
       }
@@ -112,7 +120,6 @@ const App: React.FC = () => {
     setPortfolioData(newData);
     let success = false;
     try {
-      // Fix: Cast the result of withRetry to any to prevent property 'error' does not exist on type '{}'
       const { error } = (await withRetry(() => 
         supabase
           .from('portfolio_content')
