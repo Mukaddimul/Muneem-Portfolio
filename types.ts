@@ -8,7 +8,7 @@ export interface Project {
   color: string;
   link?: string;
   logo?: string;
-  logoBg?: string; // Optional background color for the logo container (e.g., 'bg-white')
+  logoBg?: string; 
   achievements?: string[];
 }
 
@@ -29,6 +29,7 @@ export interface TimelineItem {
   details: string[];
   type: 'education' | 'leadership' | 'achievement' | 'professional' | 'creative' | 'volunteer';
   icon: string;
+  logo?: string;
 }
 
 export interface Award {
@@ -54,6 +55,16 @@ export interface NewsPost {
   image?: string;
   likes: number;
   comments: NewsComment[];
+}
+
+export interface ContactInquiry {
+  id: number;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  created_at: string;
+  status: 'unread' | 'read' | 'archived';
 }
 
 export interface Profile {

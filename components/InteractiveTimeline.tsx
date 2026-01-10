@@ -47,13 +47,17 @@ const InteractiveTimeline: React.FC<InteractiveTimelineProps> = ({ timeline }) =
                     ${isActive ? 'border-brand-500/50 bg-slate-800/80 shadow-2xl' : 'border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'}`}
                 >
                   <div className="flex items-start gap-4 mb-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors
-                      ${isActive ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-500'}`}>
-                      <i className={`fa-solid ${item.icon}`}></i>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all overflow-hidden border border-slate-700/50
+                      ${isActive ? 'bg-brand-600/10 border-brand-500/50 scale-105 shadow-lg' : 'bg-slate-800 shadow-inner'}`}>
+                      {item.logo ? (
+                        <img src={item.logo} alt={item.subtitle} className="w-full h-full object-contain p-1.5" />
+                      ) : (
+                        <i className={`fa-solid ${item.icon} ${isActive ? 'text-brand-400' : 'text-slate-500'} text-lg`}></i>
+                      )}
                     </div>
-                    <div>
-                      <h3 className={`font-bold transition-colors ${isActive ? 'text-white text-xl' : 'text-slate-200'}`}>{item.title}</h3>
-                      <p className="text-brand-400 text-sm font-semibold">{item.subtitle}</p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-bold transition-colors truncate ${isActive ? 'text-white text-xl' : 'text-slate-200'}`}>{item.title}</h3>
+                      <p className="text-brand-400 text-sm font-bold truncate">{item.subtitle}</p>
                     </div>
                   </div>
 
@@ -72,7 +76,7 @@ const InteractiveTimeline: React.FC<InteractiveTimelineProps> = ({ timeline }) =
                         ))}
                       </ul>
                       <div className="mt-6 flex gap-2">
-                        <span className="text-[10px] bg-dark-900/50 px-2 py-1 rounded text-slate-500 font-mono uppercase">
+                        <span className="text-[10px] bg-dark-900/50 px-2 py-1 rounded text-slate-500 font-mono uppercase border border-slate-800/50">
                           {item.type}
                         </span>
                       </div>

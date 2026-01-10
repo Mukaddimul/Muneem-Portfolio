@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 interface NavbarProps {
@@ -71,7 +70,7 @@ const Navbar: React.FC<NavbarProps> = ({ scrolled, name, profilePic, onViewChang
                 target.src = `https://ui-avatars.com/api/?name=${name}&background=2563eb&color=fff`;
               }} />
             </div>
-            <span className="hidden sm:inline">{name}<span className="text-brand-400">.</span></span>
+            <span className="hidden sm:inline uppercase">{name}<span className="text-brand-400">.</span></span>
           </div>
           
           {/* Desktop Nav */}

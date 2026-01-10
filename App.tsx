@@ -13,33 +13,116 @@ import AdminPanel from './components/AdminPanel';
 import LoginPanel from './components/LoginPanel';
 import NewsPage from './components/NewsPage';
 import { INITIAL_DATA } from './constants';
-import { PortfolioData, NewsPost, NewsComment } from './types';
+import { PortfolioData, NewsComment } from './types';
+import { supabase } from './supabaseClient';
 
 const App: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [currentView, setCurrentView] = useState<'portfolio' | 'news'>('portfolio');
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorInfo, setErrorInfo] = useState<{ message: string; code?: string; isTableMissing?: boolean } | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return sessionStorage.getItem('is_admin_logged_in') === 'true';
   });
 
-  const [portfolioData, setPortfolioData] = useState<PortfolioData>(() => {
-    const saved = localStorage.getItem('portfolio_data');
-    return saved ? JSON.parse(saved) : INITIAL_DATA;
-  });
+  const [portfolioData, setPortfolioData] = useState<PortfolioData>(INITIAL_DATA);
 
+  // Sync data from Supabase
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
+    const fetchPortfolioData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('portfolio_content')
+          .select('content')
+          .eq('id', 'main_config')
+          .maybeSingle();
+
+        if (error) {
+          const errorMsg = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
+          const isTableMissing = 
+            error.code === '42P01' || 
+            errorMsg.toLowerCase().includes('portfolio_content') || 
+            errorMsg.toLowerCase().includes('schema cache');
+
+          if (isTableMissing) {
+            setErrorInfo({
+              message: "The 'portfolio_content' table was not found. Please ensure your Supabase database is initialized.",
+              code: error.code,
+              isTableMissing: true
+            });
+          } else {
+            setErrorInfo({
+              message: errorMsg,
+              code: error.code
+            });
+          }
+          console.error("Supabase Connection Error:", errorMsg);
+        } else if (!data) {
+          // Table exists but row is missing, attempt to seed
+          console.log("Config row missing. Seeding initial data...");
+          const { error: upsertError } = await supabase
+            .from('portfolio_content')
+            .upsert({ id: 'main_config', content: INITIAL_DATA });
+          
+          if (upsertError) {
+            console.error("Seeding failed:", upsertError.message || JSON.stringify(upsertError));
+            setPortfolioData(INITIAL_DATA);
+          } else {
+            setPortfolioData(INITIAL_DATA);
+          }
+        } else if (data && data.content) {
+          setPortfolioData(data.content);
+        }
+      } catch (err: any) {
+        console.error("Unexpected fetch error:", err);
+        const catchMsg = (err && typeof err.message === 'string') 
+          ? err.message 
+          : (typeof err === 'string' ? err : JSON.stringify(err));
+        setErrorInfo({ message: catchMsg || "An unexpected connection error occurred." });
+      } finally {
+        setIsLoading(false);
+      }
     };
+
+    fetchPortfolioData();
+
+    const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleSave = (newData: PortfolioData) => {
+  const persistData = async (newData: PortfolioData) => {
     setPortfolioData(newData);
-    localStorage.setItem('portfolio_data', JSON.stringify(newData));
+    try {
+      const { error } = await supabase
+        .from('portfolio_content')
+        .upsert({ id: 'main_config', content: newData });
+      
+      if (error) {
+        console.error("Persistence Error:", error.message || JSON.stringify(error));
+        // Fallback to local storage if quota allows
+        try {
+          localStorage.setItem('portfolio_data_backup', JSON.stringify(newData));
+        } catch (e) {
+          console.warn("Local storage quota exceeded. Storing text-only snapshot.");
+          // Try to store a version without heavy images as a last resort
+          const simplified = { ...newData, news: newData.news.map(n => ({...n, image: undefined})) };
+          try {
+            localStorage.setItem('portfolio_data_backup', JSON.stringify(simplified));
+          } catch (e2) {
+            console.error("Failed even simplified backup.");
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Persistence failure:", err);
+    }
+  };
+
+  const handleSave = async (newData: PortfolioData) => {
+    await persistData(newData);
     setIsAdminOpen(false);
   };
 
@@ -64,16 +147,15 @@ const App: React.FC = () => {
     setIsAdminOpen(false);
   };
 
-  const handleLikeNews = (postId: string) => {
+  const handleLikeNews = async (postId: string) => {
     const updatedNews = portfolioData.news.map(post => 
       post.id === postId ? { ...post, likes: post.likes + 1 } : post
     );
     const newData = { ...portfolioData, news: updatedNews };
-    setPortfolioData(newData);
-    localStorage.setItem('portfolio_data', JSON.stringify(newData));
+    await persistData(newData);
   };
 
-  const handleCommentNews = (postId: string, comment: Omit<NewsComment, 'id' | 'date'>) => {
+  const handleCommentNews = async (postId: string, comment: Omit<NewsComment, 'id' | 'date'>) => {
     const newComment: NewsComment = {
       ...comment,
       id: Date.now().toString(),
@@ -83,8 +165,7 @@ const App: React.FC = () => {
       post.id === postId ? { ...post, comments: [...post.comments, newComment] } : post
     );
     const newData = { ...portfolioData, news: updatedNews };
-    setPortfolioData(newData);
-    localStorage.setItem('portfolio_data', JSON.stringify(newData));
+    await persistData(newData);
   };
 
   const handleViewChange = (view: 'portfolio' | 'news') => {
@@ -92,9 +173,72 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-dark-900 flex flex-col items-center justify-center text-white p-6">
+        <div className="w-16 h-16 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+        <div className="flex gap-1 loader-dots">
+          <div className="w-2 h-2 bg-brand-400 rounded-full"></div>
+          <div className="w-2 h-2 bg-brand-400 rounded-full"></div>
+          <div className="w-2 h-2 bg-brand-400 rounded-full"></div>
+        </div>
+        <p className="mt-8 text-slate-500 font-bold uppercase tracking-[0.3em] text-[10px]">Syncing with Supabase</p>
+      </div>
+    );
+  }
+
+  if (errorInfo) {
+    return (
+      <div className="min-h-screen bg-dark-900 flex flex-col items-center justify-center text-white p-10 text-center">
+        <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center mb-8 border border-red-500/20 shadow-2xl">
+          <i className="fa-solid fa-database-circle-exclamation text-red-500 text-3xl"></i>
+        </div>
+        <h1 className="text-2xl font-heading font-black mb-4 uppercase tracking-tighter text-red-400">Database Setup Required</h1>
+        <p className="max-w-md text-slate-400 text-sm leading-relaxed mb-8">
+          {String(errorInfo.message)}
+        </p>
+        
+        {errorInfo.isTableMissing && (
+          <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 max-w-lg text-left shadow-2xl">
+            <p className="text-[10px] font-black uppercase text-brand-400 tracking-widest mb-3 flex items-center gap-2">
+              <i className="fa-solid fa-terminal"></i> SQL Editor Script
+            </p>
+            <p className="text-[10px] text-slate-500 mb-4 italic">Run this in Supabase to fix the database schema:</p>
+            <pre className="text-[10px] text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap p-4 bg-black/40 rounded-xl border border-white/5">
+              {`CREATE TABLE IF NOT EXISTS public.portfolio_content (
+  id TEXT PRIMARY KEY,
+  content JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Note: Tables are tracked automatically in modern Supabase, 
+-- explicit Realtime publication setup is usually not required 
+-- and may error if already configured.`}
+            </pre>
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-4 mt-10">
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-8 py-3 bg-brand-600 rounded-full text-xs font-black uppercase tracking-widest hover:bg-brand-500 transition-all shadow-lg shadow-brand-600/20"
+          >
+            Retry Connection
+          </button>
+          <button 
+            onClick={() => setErrorInfo(null)}
+            className="px-8 py-3 bg-slate-800 rounded-full text-xs font-black uppercase tracking-widest hover:bg-slate-700 transition-all border border-slate-700"
+          >
+            Continue Offline
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative overflow-x-hidden min-h-screen">
-      {/* Decorative Background Blobs - Hidden during print */}
+      {/* Decorative Background Blobs */}
       <div className="blob bg-brand-600 w-96 h-96 rounded-full top-0 left-0 -translate-x-1/2 -translate-y-1/2 print:hidden"></div>
       <div className="blob bg-purple-600 w-[500px] h-[500px] rounded-full top-1/2 right-0 translate-x-1/2 -translate-y-1/2 print:hidden"></div>
       <div className="blob bg-blue-600 w-96 h-96 rounded-full bottom-0 left-0 -translate-x-1/2 translate-y-1/2 print:hidden"></div>
@@ -148,14 +292,14 @@ const App: React.FC = () => {
             onClick={handleAdminClick}
             className="mb-8 text-[10px] text-slate-600 hover:text-brand-400 uppercase tracking-[0.2em] font-black flex items-center justify-center gap-2 mx-auto transition-colors"
           >
-            <i className={`fa-solid ${isLoggedIn ? 'fa-unlock' : 'fa-lock'}`}></i> 
-            {isLoggedIn ? 'Dashboard Access Granted' : 'Admin Dashboard'}
+            <i className={`fa-solid ${isLoggedIn ? 'fa-unlock' : 'fa-lock'}`}></i>
+            {isLoggedIn ? ' Dashboard Access Granted' : ' Admin Dashboard'}
           </button>
 
           <div className="text-sm text-slate-500">
             <p>&copy; {new Date().getFullYear()} {portfolioData.profile.fullName}.</p>
             <p className="mt-2 flex items-center justify-center gap-1.5">
-              Made with <i className="fa-solid fa-heart text-red-500 animate-pulse"></i> in Bangladesh
+              Made with <i className="fa-solid fa-heart text-red-500 animate-pulse"></i> via Supabase
             </p>
           </div>
         </div>
