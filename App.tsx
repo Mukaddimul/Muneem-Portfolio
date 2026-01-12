@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -31,20 +30,33 @@ const App: React.FC = () => {
     }
   });
 
-  const [portfolioData, setPortfolioData] = useState<PortfolioData>(INITIAL_DATA);
+  // Initialize with local storage if available, otherwise constants
+  const [portfolioData, setPortfolioData] = useState<PortfolioData>(() => {
+    try {
+      const saved = localStorage.getItem('portfolio_data_backup');
+      return saved ? JSON.parse(saved) : INITIAL_DATA;
+    } catch (e) {
+      return INITIAL_DATA;
+    }
+  });
 
   // Helper for exponential backoff retries on network failures
-  const withRetry = async <T,>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> => {
+  const withRetry = async <T,>(fn: () => Promise<T>, retries = 2, delay = 800): Promise<T> => {
     try {
       return await fn();
     } catch (err: any) {
-      const isNetworkError = err instanceof TypeError || err.message?.includes('fetch') || err.message?.includes('NetworkError');
+      const errorMsg = err?.message || String(err);
+      const isNetworkError = 
+        err instanceof TypeError || 
+        errorMsg.toLowerCase().includes('fetch') || 
+        errorMsg.toLowerCase().includes('network') ||
+        errorMsg.toLowerCase().includes('failed to load');
+      
       if (retries <= 0 || !isNetworkError) {
         throw err;
       }
-      console.warn(`Retrying Supabase operation... (${retries} attempts left)`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return withRetry(fn, retries - 1, delay * 2);
+      return withRetry(fn, retries - 1, delay * 1.5);
     }
   };
 
@@ -68,42 +80,40 @@ const App: React.FC = () => {
             error.code === '42P01' || 
             errorMsg.toLowerCase().includes('portfolio_content') || 
             errorMsg.toLowerCase().includes('schema cache');
+          
+          const isNetworkError = 
+            errorMsg.toLowerCase().includes('fetch') || 
+            errorMsg.toLowerCase().includes('network') ||
+            errorMsg.toLowerCase().includes('failed to load');
 
           if (isTableMissing) {
             setErrorInfo({
-              message: "The 'portfolio_content' table was not found. Please ensure your Supabase database is initialized.",
+              message: "The 'portfolio_content' table was not found in Supabase. Please run the SQL migration.",
               code: error.code,
               isTableMissing: true
             });
+          } else if (isNetworkError) {
+            // Silently use local data for network failures to keep the portfolio alive
+            console.warn("Supabase unreachable. Operating in Offline/Local mode.", errorMsg);
           } else {
-            setErrorInfo({
-              message: errorMsg,
-              code: error.code
-            });
+            // Log other errors but don't block render
+            console.error("Supabase Config Error:", errorMsg);
           }
-          console.error("Supabase Connection Error:", errorMsg);
-        } else if (!data) {
-          console.log("Config row missing. Seeding initial data...");
-          const { error: upsertError } = await supabase
-            .from('portfolio_content')
-            .upsert({ id: 'main_config', content: INITIAL_DATA });
-          
-          if (upsertError) {
-            console.error("Seeding failed:", upsertError.message || JSON.stringify(upsertError));
-          }
-          setPortfolioData(INITIAL_DATA);
         } else if (data && data.content) {
           setPortfolioData(data.content);
+          // Update local backup
+          try {
+            localStorage.setItem('portfolio_data_backup', JSON.stringify(data.content));
+          } catch (e) {}
+        } else if (!data) {
+          console.log("Config row missing. Initializing cloud record...");
+          try {
+            await supabase.from('portfolio_content').upsert({ id: 'main_config', content: INITIAL_DATA });
+          } catch (e) {}
         }
       } catch (err: any) {
-        console.error("Unexpected fetch error:", err);
-        const catchMsg = (err && typeof err.message === 'string') 
-          ? err.message 
-          : (typeof err === 'string' ? err : JSON.stringify(err));
-        
-        // Gracefully fallback to local initial data if network is unavailable
-        console.warn("Falling back to local initial data due to connection issues.");
-        setPortfolioData(INITIAL_DATA);
+        // Broad catch-all for any failed request
+        console.warn("Using Local Data Cache. Network reason:", err?.message || String(err));
       } finally {
         setIsLoading(false);
       }
@@ -119,6 +129,12 @@ const App: React.FC = () => {
   const persistData = async (newData: PortfolioData): Promise<boolean> => {
     setPortfolioData(newData);
     let success = false;
+    
+    // Always save locally first
+    try {
+      localStorage.setItem('portfolio_data_backup', JSON.stringify(newData));
+    } catch (e) {}
+
     try {
       const { error } = (await withRetry(() => 
         supabase
@@ -126,31 +142,19 @@ const App: React.FC = () => {
           .upsert({ id: 'main_config', content: newData })
       )) as any;
       
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       success = true;
     } catch (err: any) {
-      console.error("Persistence failure (Cloud):", err.message || err);
-      // Local fallback
-      try {
-        localStorage.setItem('portfolio_data_backup', JSON.stringify(newData));
-      } catch (e) {
-        const simplified = { ...newData, news: newData.news.map(n => ({...n, image: undefined})) };
-        try {
-          localStorage.setItem('portfolio_data_backup', JSON.stringify(simplified));
-        } catch (e2) {}
-      }
+      console.error("Cloud Persist Failed (Network):", err.message || err);
     }
     return success;
   };
 
   const handleSave = async (newData: PortfolioData) => {
     const success = await persistData(newData);
-    if (success) {
-      setIsAdminOpen(false);
-    } else {
-      alert("System could not sync with cloud due to a network error. Your changes are saved in local browser storage and will try to sync next time.");
+    setIsAdminOpen(false);
+    if (!success) {
+      alert("Note: Changes saved locally but couldn't sync with cloud. They will be uploaded when connection is restored.");
     }
   };
 
@@ -205,56 +209,39 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-dark-900 flex flex-col items-center justify-center text-white p-6">
         <div className="w-16 h-16 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mb-6"></div>
-        <div className="flex gap-1 loader-dots">
-          <div className="w-2 h-2 bg-brand-400 rounded-full"></div>
-          <div className="w-2 h-2 bg-brand-400 rounded-full"></div>
-          <div className="w-2 h-2 bg-brand-400 rounded-full"></div>
-        </div>
-        <p className="mt-8 text-slate-500 font-bold uppercase tracking-[0.3em] text-[10px]">Syncing with Supabase</p>
+        <p className="mt-8 text-slate-500 font-bold uppercase tracking-[0.3em] text-[10px]">Synchronizing Interface</p>
       </div>
     );
   }
 
-  if (errorInfo) {
+  // Only show error screen for actionable structural database errors
+  if (errorInfo && errorInfo.isTableMissing) {
     return (
       <div className="min-h-screen bg-dark-900 flex flex-col items-center justify-center text-white p-10 text-center">
         <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center mb-8 border border-red-500/20 shadow-2xl">
           <i className="fa-solid fa-database-circle-exclamation text-red-500 text-3xl"></i>
         </div>
-        <h1 className="text-2xl font-heading font-black mb-4 uppercase tracking-tighter text-red-400">Database Setup Required</h1>
+        <h1 className="text-2xl font-heading font-black mb-4 uppercase tracking-tighter text-red-400">Database Schema Missing</h1>
         <p className="max-w-md text-slate-400 text-sm leading-relaxed mb-8">
-          {String(errorInfo.message)}
+          The Supabase connection is active, but the required table doesn't exist.
         </p>
         
-        {errorInfo.isTableMissing && (
-          <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 max-w-lg text-left shadow-2xl">
-            <p className="text-[10px] font-black uppercase text-brand-400 tracking-widest mb-3 flex items-center gap-2">
-              <i className="fa-solid fa-terminal"></i> SQL Editor Script
-            </p>
-            <p className="text-[10px] text-slate-500 mb-4 italic">Run this in Supabase to fix the database schema:</p>
-            <pre className="text-[10px] text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap p-4 bg-black/40 rounded-xl border border-white/5">
-              {`CREATE TABLE IF NOT EXISTS public.portfolio_content (
+        <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 max-w-lg text-left shadow-2xl">
+          <p className="text-[10px] font-black uppercase text-brand-400 tracking-widest mb-3 flex items-center gap-2">
+            <i className="fa-solid fa-terminal"></i> SQL Editor Patch
+          </p>
+          <pre className="text-[10px] text-emerald-400 font-mono overflow-x-auto whitespace-pre-wrap p-4 bg-black/40 rounded-xl border border-white/5">
+            {`CREATE TABLE IF NOT EXISTS public.portfolio_content (
   id TEXT PRIMARY KEY,
   content JSONB NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );`}
-            </pre>
-          </div>
-        )}
+          </pre>
+        </div>
 
         <div className="flex flex-col sm:flex-row gap-4 mt-10">
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-8 py-3 bg-brand-600 rounded-full text-xs font-black uppercase tracking-widest hover:bg-brand-500 transition-all shadow-lg shadow-brand-600/20"
-          >
-            Retry Connection
-          </button>
-          <button 
-            onClick={() => setErrorInfo(null)}
-            className="px-8 py-3 bg-slate-800 rounded-full text-xs font-black uppercase tracking-widest hover:bg-slate-700 transition-all border border-slate-700"
-          >
-            Continue Offline
-          </button>
+          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-brand-600 rounded-full text-xs font-black uppercase tracking-widest hover:bg-brand-500 transition-all shadow-lg">Retry Sync</button>
+          <button onClick={() => setErrorInfo(null)} className="px-8 py-3 bg-slate-800 rounded-full text-xs font-black uppercase tracking-widest hover:bg-slate-700 transition-all border border-slate-700">Browse Offline</button>
         </div>
       </div>
     );
