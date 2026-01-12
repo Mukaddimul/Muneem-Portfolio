@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -7,7 +8,6 @@ import Leadership from './components/Leadership';
 import Projects from './components/Projects';
 import Awards from './components/Awards';
 import Contact from './components/Contact';
-import AIAssistant from './components/AIAssistant';
 import AdminPanel from './components/AdminPanel';
 import LoginPanel from './components/LoginPanel';
 import NewsPage from './components/NewsPage';
@@ -330,10 +330,6 @@ const App: React.FC = () => {
           onClose={() => setIsAdminOpen(false)} 
         />
       )}
-
-      <div className="print:hidden">
-        <AIAssistant profile={portfolioData.profile} />
-      </div>
     </div>
   );
 };
