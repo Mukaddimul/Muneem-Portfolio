@@ -52,6 +52,12 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
   const blurValue = Math.min(25, scrollY / 15);
   const scaleEffect = 1 + (scrollY / 1500) * 0.08;
 
+  // Split name for specific two-line layout as requested by user
+  // First line: MD. Mukaddimul Haque
+  // Second line: Muneem
+  const firstLine = "MD. Mukaddimul Haque";
+  const secondLine = "Muneem";
+
   return (
     <section id="home" className="min-h-screen flex items-center justify-center pt-28 pb-12 px-4 relative overflow-hidden scroll-mt-20">
       
@@ -78,7 +84,7 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
         <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-transparent to-dark-900 opacity-60"></div>
       </div>
 
-      <div className="max-w-6xl mx-auto text-center relative z-10">
+      <div className="max-w-6xl mx-auto text-center relative z-10 w-full">
         <div className="flex flex-col items-center mb-10">
           {/* Main Profile Picture */}
           <div className="w-36 h-36 sm:w-44 sm:h-44 md:w-52 md:h-52 rounded-full border-4 border-brand-500 shadow-2xl shadow-brand-500/20 overflow-hidden mb-8 hover:scale-105 transition-transform duration-500 bg-dark-800">
@@ -116,10 +122,10 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
           </div>
         </div>
 
-        {/* Professional Name */}
-        <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-heading font-extrabold text-white mb-8 leading-[1.1] tracking-tighter drop-shadow-2xl px-2">
-          <span className="block sm:inline">{profile.fullName.split(' ').slice(0, -1).join(' ')} </span>
-          <span className="text-gradient block sm:inline">{profile.fullName.split(' ').pop()}</span>
+        {/* User Name Display - Strictly 2 lines across all devices */}
+        <h1 className="text-[6.8vw] sm:text-5xl md:text-7xl lg:text-8xl font-heading font-extrabold text-white mb-8 leading-[1.1] tracking-tighter drop-shadow-2xl px-2 uppercase text-center overflow-visible">
+          <span className="block mb-2 whitespace-nowrap">{firstLine}</span>
+          <span className="text-gradient block whitespace-nowrap">{secondLine}</span>
         </h1>
 
         <p className="max-w-3xl mx-auto text-base md:text-2xl text-slate-200 mb-12 leading-relaxed font-semibold drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] px-4">
@@ -127,26 +133,24 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
         </p>
 
         <div className="flex flex-col sm:flex-row justify-center items-center gap-4 px-4">
-          <a 
-            href="#about" 
+          <button 
             onClick={(e) => handleScrollTo(e, 'about')}
             className="bg-brand-600 hover:bg-brand-700 text-white px-8 md:px-10 py-4 rounded-full font-bold transition-all hover:scale-105 shadow-2xl shadow-brand-600/30 flex items-center justify-center gap-3 text-base md:text-lg w-full sm:w-auto"
           >
             View Portfolio <i className="fa-solid fa-arrow-right"></i>
-          </a>
+          </button>
           
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <a 
-              href="#contact" 
+            <button 
               onClick={(e) => handleScrollTo(e, 'contact')}
               className="flex-1 sm:flex-none glass-card hover:bg-slate-800 text-white px-8 md:px-10 py-4 rounded-full font-bold transition-all hover:scale-105 border border-slate-600 flex items-center justify-center gap-3 text-base md:text-lg backdrop-blur-md"
             >
               Contact Me
-            </a>
+            </button>
           </div>
         </div>
         
-        {/* Interactive Stats Grid - Expanded to 6 items */}
+        {/* Interactive Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 md:gap-4 mt-20 border-t border-slate-800/50 pt-10 max-w-6xl mx-auto px-4 relative">
           <button 
             onClick={(e) => handleScrollTo(e, 'leadership')}

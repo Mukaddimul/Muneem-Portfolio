@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Profile } from '../types';
 
@@ -26,6 +27,14 @@ const Contact: React.FC<ContactProps> = ({ profile }) => {
       <div className="max-w-4xl mx-auto px-4 relative z-10">
         <div className="flex flex-col items-center space-y-10">
           
+          {/* Section Heading */}
+          <div className="text-center">
+            <h2 className="text-3xl md:text-5xl font-heading font-black text-white uppercase tracking-tighter mb-4">
+              Let's <span className="text-gradient">Connect</span>
+            </h2>
+            <div className="w-16 h-1 bg-brand-600 mx-auto rounded-full opacity-50 mb-2"></div>
+          </div>
+
           {/* Social Links Row */}
           <div className="flex flex-wrap justify-center gap-4 md:gap-6">
             {socialLinks.map((link) => (
@@ -42,13 +51,13 @@ const Contact: React.FC<ContactProps> = ({ profile }) => {
             ))}
           </div>
 
-          {/* Minimalist Branded Card - Reduced padding and rounded corners */}
+          {/* Minimalist Branded Card */}
           <div className="glass-card w-full max-w-3xl p-8 md:p-14 rounded-[2.5rem] border border-slate-700/50 shadow-2xl relative overflow-hidden group">
             {/* Inner Glow */}
             <div className="absolute inset-0 bg-gradient-to-br from-brand-600/5 to-transparent opacity-50"></div>
             
             <div className="relative z-10 flex flex-col items-center">
-              {/* Centered Professional Tagline - Reduced font size */}
+              {/* Centered Professional Tagline */}
               <p className="text-white text-lg md:text-3xl font-heading font-bold mb-6 italic leading-tight text-center max-w-2xl drop-shadow-2xl">
                 "Transforming healthcare and society through engineering and leadership."
               </p>

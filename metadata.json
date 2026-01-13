@@ -1,5 +1,8 @@
 {
   "name": "Muneem Portfolio - BME & Innovation",
   "description": "Professional portfolio of MD. Mukaddimul Haque Muneem, a Biomedical Engineering student, leader, and tech innovator.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }

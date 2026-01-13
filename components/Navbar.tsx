@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 
 interface NavbarProps {
@@ -61,7 +62,7 @@ const Navbar: React.FC<NavbarProps> = ({ scrolled, name, profilePic, onViewChang
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
         <div className="flex items-center justify-between h-full">
           <div 
-            className={`flex-shrink-0 flex items-center gap-3 font-heading font-bold text-xl md:text-2xl ${nameColor} tracking-wider cursor-pointer group transition-colors duration-500`} 
+            className={`flex-shrink-0 flex items-center gap-3 font-heading font-bold text-lg md:text-2xl ${nameColor} tracking-wider cursor-pointer group transition-colors duration-500`} 
             onClick={(e) => handleNavClick(e, '#home', 'portfolio')}
           >
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-brand-500 overflow-hidden shadow-lg shadow-brand-500/20 group-hover:scale-105 transition-transform duration-300">
@@ -70,7 +71,10 @@ const Navbar: React.FC<NavbarProps> = ({ scrolled, name, profilePic, onViewChang
                 target.src = `https://ui-avatars.com/api/?name=${name}&background=2563eb&color=fff`;
               }} />
             </div>
-            <span className="hidden sm:inline uppercase">{name}<span className="text-brand-400">.</span></span>
+            {/* Displaying name on all devices, ensuring visibility in the 'corner' of the profile photo section */}
+            <span className="inline uppercase font-black tracking-tighter sm:tracking-widest">
+              {name}<span className="text-brand-400">.</span>
+            </span>
           </div>
           
           {/* Desktop Nav */}

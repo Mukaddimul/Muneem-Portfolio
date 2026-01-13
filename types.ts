@@ -50,7 +50,7 @@ export interface NewsPost {
   id: string;
   title: string;
   content: string;
-  date: string;
+  date: string; // ISO string for sorting/filtering
   author: string;
   image?: string;
   likes: number;
