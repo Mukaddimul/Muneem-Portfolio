@@ -1,4 +1,10 @@
 
+export interface Achievement {
+  text: string;
+  details?: string;
+  url?: string;
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -9,7 +15,7 @@ export interface Project {
   link?: string;
   logo?: string;
   logoBg?: string; 
-  achievements?: string[];
+  achievements?: (string | Achievement)[];
 }
 
 export interface Skill {

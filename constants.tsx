@@ -22,7 +22,17 @@ export const INITIAL_DATA: PortfolioData = {
       color: 'from-blue-700',
       link: 'https://www.medilinkxbd.com/',
       logo: 'https://www.google.com/s2/favicons?sz=256&domain_url=medilinkxbd.com',
-      achievements: ['Featured in National Health Tech Summit 2024']
+      achievements: [
+        { 
+          text: 'Featured in National Health Tech Summit 2024',
+          details: 'Recognized as a leading startup in digital health, presenting to a panel of international healthcare investors.',
+          url: 'https://www.medilinkxbd.com/press-release'
+        },
+        {
+          text: 'Rural Health Integration Phase 1 Complete',
+          details: 'Successfully connected 12 community clinics in Natore district to the central AI server for preliminary diagnostic checks.'
+        }
+      ]
     },
     {
       id: 'plastixide',
@@ -33,7 +43,14 @@ export const INITIAL_DATA: PortfolioData = {
       color: 'from-emerald-700',
       link: 'https://www.plastixide.com/',
       logo: 'https://www.google.com/s2/favicons?sz=256&domain_url=plastixide.com',
-      achievements: ['Winner: Civic Tech Challenge', 'Environmental Excellence Award Nominee']
+      achievements: [
+        {
+          text: 'Winner: Civic Tech Challenge',
+          details: 'Secured first place among 100+ innovative solutions for environmental sustainability.',
+          url: 'https://www.civictechchallenge.com/winners-2024'
+        },
+        'Environmental Excellence Award Nominee'
+      ]
     },
     {
       id: 'poster-shorai',
@@ -44,7 +61,10 @@ export const INITIAL_DATA: PortfolioData = {
       color: 'from-orange-600',
       link: 'https://www.postershorai.com/',
       logo: 'https://www.google.com/s2/favicons?sz=256&domain_url=postershorai.com',
-      achievements: ['Served 100+ Global Clients', 'Top Rated Creative Agency (Natore)']
+      achievements: [
+        'Served 100+ Global Clients',
+        'Top Rated Creative Agency (Natore)'
+      ]
     },
   ],
   skills: [

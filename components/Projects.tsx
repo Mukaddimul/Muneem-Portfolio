@@ -1,12 +1,23 @@
 
-import React from 'react';
-import { Project } from '../types';
+import React, { useState } from 'react';
+import { Project, Achievement } from '../types';
 
 interface ProjectsProps {
   projects: Project[];
 }
 
 const Projects: React.FC<ProjectsProps> = ({ projects }) => {
+  const [expandedMilestone, setExpandedMilestone] = useState<{ projectId: string; index: number } | null>(null);
+
+  const toggleMilestone = (projectId: string, index: number, hasDetails: boolean) => {
+    if (!hasDetails) return;
+    if (expandedMilestone?.projectId === projectId && expandedMilestone?.index === index) {
+      setExpandedMilestone(null);
+    } else {
+      setExpandedMilestone({ projectId, index });
+    }
+  };
+
   return (
     <section id="projects" className="py-24 scroll-mt-20">
       <div className="max-w-6xl mx-auto px-4">
@@ -17,21 +28,19 @@ const Projects: React.FC<ProjectsProps> = ({ projects }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {projects.map((project) => (
             <div key={project.id} className="glass-card rounded-2xl overflow-hidden group hover:scale-[1.02] transition duration-300 border border-slate-700/50 flex flex-col">
-              {/* Brand Visual Area - Transparent Container */}
+              {/* Brand Visual Area */}
               <a 
                 href={project.link || '#'} 
                 target={project.link ? "_blank" : "_self"}
                 rel="noopener noreferrer"
                 className={`h-72 bg-gradient-to-br ${project.color} to-slate-900 flex items-center justify-center transition-all duration-700 relative overflow-hidden ${project.link ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
               >
-                {/* Visual Depth Elements */}
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.05),transparent)] opacity-40"></div>
                 <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                 
-                {/* Logo Badge - No white background, forced visibility */}
                 <div className="relative z-10 transition-all duration-700 group-hover:scale-110 group-hover:rotate-3">
                   {project.logo ? (
-                    <div className={`flex items-center justify-center w-48 h-48 md:w-56 md:h-56 transition-all transform-gpu`}>
+                    <div className="flex items-center justify-center w-48 h-48 md:w-56 md:h-56 transition-all transform-gpu">
                       <img 
                         src={project.logo} 
                         alt={`${project.title} official logo`} 
@@ -54,7 +63,6 @@ const Projects: React.FC<ProjectsProps> = ({ projects }) => {
                     </div>
                   )}
                   
-                  {/* Status Label */}
                   <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-dark-900/80 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full shadow-2xl border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-500 whitespace-nowrap">
                     Launch Site
                   </div>
@@ -82,16 +90,58 @@ const Projects: React.FC<ProjectsProps> = ({ projects }) => {
                   {project.description}
                 </p>
 
-                {/* Achievements */}
+                {/* Achievements / Verified Milestones */}
                 {project.achievements && project.achievements.length > 0 && (
-                  <div className="mb-10 space-y-4 bg-white/[0.03] p-6 rounded-[2rem] border border-white/[0.05] shadow-inner">
+                  <div className="mb-10 space-y-3 bg-white/[0.03] p-6 rounded-[2rem] border border-white/[0.05] shadow-inner">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Verified Milestones</p>
-                    {project.achievements.map((achievement, idx) => (
-                      <div key={idx} className="flex items-start gap-4 text-xs text-brand-100 font-bold italic leading-tight group/ach">
-                        <i className="fa-solid fa-circle-check text-brand-500 mt-0.5 group-hover/ach:scale-110 transition-transform"></i>
-                        <span>{achievement}</span>
-                      </div>
-                    ))}
+                    <div className="space-y-3">
+                      {project.achievements.map((ach, idx) => {
+                        const isObject = typeof ach !== 'string';
+                        const text = isObject ? (ach as Achievement).text : (ach as string);
+                        const details = isObject ? (ach as Achievement).details : undefined;
+                        const url = isObject ? (ach as Achievement).url : undefined;
+                        const isExpanded = expandedMilestone?.projectId === project.id && expandedMilestone?.index === idx;
+                        const hasContent = !!(details || url);
+
+                        return (
+                          <div key={idx} className="group/ach">
+                            <button 
+                              onClick={() => toggleMilestone(project.id, idx, hasContent)}
+                              className={`w-full text-left flex items-start gap-3 text-xs font-bold italic transition-all ${hasContent ? 'hover:text-brand-300' : 'cursor-default'} ${isExpanded ? 'text-brand-400' : 'text-brand-100'}`}
+                            >
+                              <i className={`fa-solid fa-circle-check mt-1 shrink-0 ${isExpanded ? 'text-brand-400' : 'text-brand-500'} group-hover/ach:scale-110 transition-transform`}></i>
+                              <div className="flex-1">
+                                <span className="leading-tight">{text}</span>
+                                {hasContent && !isExpanded && (
+                                  <span className="ml-2 text-[8px] opacity-40 uppercase tracking-tighter not-italic">(Click for details)</span>
+                                )}
+                              </div>
+                            </button>
+
+                            {/* Expandable Details Container */}
+                            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-64 opacity-100 mt-3 mb-2' : 'max-h-0 opacity-0'}`}>
+                              <div className="pl-7 pr-2 space-y-4">
+                                {details && (
+                                  <p className="text-[11px] text-slate-400 leading-relaxed font-medium not-italic">
+                                    {details}
+                                  </p>
+                                )}
+                                {url && (
+                                  <a 
+                                    href={url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-600/20 hover:bg-brand-600 text-brand-300 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-brand-500/20"
+                                  >
+                                    View Source Proof <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 

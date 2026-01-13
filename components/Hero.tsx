@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Profile } from '../types';
 
@@ -45,6 +44,10 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   const whatsappLink = `https://wa.me/${profile.phone.replace(/[^0-9]/g, '')}`;
 
   // Dynamic styles for the prominent background cover photo
@@ -52,9 +55,6 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
   const blurValue = Math.min(25, scrollY / 15);
   const scaleEffect = 1 + (scrollY / 1500) * 0.08;
 
-  // Split name for specific two-line layout as requested by user
-  // First line: MD. Mukaddimul Haque
-  // Second line: Muneem
   const firstLine = "MD. Mukaddimul Haque";
   const secondLine = "Muneem";
 
@@ -80,13 +80,11 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
             target.src = 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=2070';
           }}
         />
-        {/* Dark Overlay to ensure text readability */}
         <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-transparent to-dark-900 opacity-60"></div>
       </div>
 
       <div className="max-w-6xl mx-auto text-center relative z-10 w-full">
         <div className="flex flex-col items-center mb-10">
-          {/* Main Profile Picture */}
           <div className="w-36 h-36 sm:w-44 sm:h-44 md:w-52 md:h-52 rounded-full border-4 border-brand-500 shadow-2xl shadow-brand-500/20 overflow-hidden mb-8 hover:scale-105 transition-transform duration-500 bg-dark-800">
             <img 
               src={profile.profilePic} 
@@ -122,7 +120,6 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
           </div>
         </div>
 
-        {/* User Name Display - Strictly 2 lines across all devices */}
         <h1 className="text-[6.8vw] sm:text-5xl md:text-7xl lg:text-8xl font-heading font-extrabold text-white mb-8 leading-[1.1] tracking-tighter drop-shadow-2xl px-2 uppercase text-center overflow-visible">
           <span className="block mb-2 whitespace-nowrap">{firstLine}</span>
           <span className="text-gradient block whitespace-nowrap">{secondLine}</span>
@@ -140,14 +137,19 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
             View Portfolio <i className="fa-solid fa-arrow-right"></i>
           </button>
           
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button 
-              onClick={(e) => handleScrollTo(e, 'contact')}
-              className="flex-1 sm:flex-none glass-card hover:bg-slate-800 text-white px-8 md:px-10 py-4 rounded-full font-bold transition-all hover:scale-105 border border-slate-600 flex items-center justify-center gap-3 text-base md:text-lg backdrop-blur-md"
-            >
-              Contact Me
-            </button>
-          </div>
+          <button 
+            onClick={handlePrint}
+            className="flex-1 sm:flex-none glass-card hover:bg-slate-800 text-white px-8 md:px-10 py-4 rounded-full font-bold transition-all hover:scale-105 border border-slate-600 flex items-center justify-center gap-3 text-base md:text-lg backdrop-blur-md w-full sm:w-auto"
+          >
+            <i className="fa-solid fa-print"></i> Print News Edition
+          </button>
+
+          <button 
+            onClick={(e) => handleScrollTo(e, 'contact')}
+            className="flex-1 sm:flex-none glass-card hover:bg-slate-800 text-slate-300 px-8 md:px-10 py-4 rounded-full font-bold transition-all hover:scale-105 border border-slate-700 flex items-center justify-center gap-3 text-base md:text-lg backdrop-blur-md w-full sm:w-auto"
+          >
+            Contact Me
+          </button>
         </div>
         
         {/* Interactive Stats Grid */}

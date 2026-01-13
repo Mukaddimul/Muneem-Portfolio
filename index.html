@@ -63,7 +63,7 @@
             to { transform: translateY(-10px); }
         }
 
-        /* Responsive Newspaper Headline Styling - Center aligned and strictly one line */
+        /* Responsive Newspaper Headline Styling */
         .headline {
             display: block;
             width: 100%;
@@ -73,28 +73,43 @@
             font-weight: 900;
             text-transform: uppercase;
             line-height: 1;
-            letter-spacing: -0.05em; /* Tighter for that newspaper look */
+            letter-spacing: -0.05em;
             white-space: nowrap;
             overflow: visible;
             padding: 1.5rem 0;
             transition: font-size 0.3s ease;
         }
 
-        /* Fluid Typography for the Headline - Calibrated for "THE CHANGE MAKER" (16 chars) */
-        @media (max-width: 480px) {
-            .headline { font-size: 8.5vw; }
+        /* Headline Animation */
+        @keyframes headline-glow {
+            0% { filter: brightness(1) drop-shadow(0 0 0 rgba(59, 130, 246, 0)); }
+            50% { filter: brightness(1.15) drop-shadow(0 0 10px rgba(59, 130, 246, 0.2)); }
+            100% { filter: brightness(1) drop-shadow(0 0 0 rgba(59, 130, 246, 0)); }
         }
-        @media (min-width: 481px) and (max-width: 768px) {
-            .headline { font-size: 8.8vw; }
-        }
-        @media (min-width: 769px) and (max-width: 1200px) {
-            .headline { font-size: 8vw; }
-        }
-        @media (min-width: 1201px) {
-            .headline { font-size: 8.5rem; }
+        .headline-animated {
+            animation: headline-glow 6s ease-in-out infinite;
         }
 
-        /* Universal Styled Scrollbar */
+        @media (max-width: 480px) { .headline { font-size: 8.5vw; } }
+        @media (min-width: 481px) and (max-width: 768px) { .headline { font-size: 8.8vw; } }
+        @media (min-width: 769px) and (max-width: 1200px) { .headline { font-size: 8vw; } }
+        @media (min-width: 1201px) { .headline { font-size: 8.5rem; } }
+
+        /* Ticker Marquee Animation */
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .animate-marquee {
+            display: flex;
+            width: max-content;
+            animation: marquee 40s linear infinite;
+        }
+        /* Keep scrolling always as requested */
+        .animate-marquee:hover {
+            animation-play-state: running;
+        }
+
         html {
             scrollbar-width: thin;
             scrollbar-color: #2563eb #0f172a;
@@ -106,29 +121,48 @@
             min-height: 100%;
         }
 
-        /* Custom Scrollbar for Webkit Browsers */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #0f172a;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #2563eb;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #3b82f6;
-        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #2563eb; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
 
-        /* Classes to manage scroll behavior in specific contexts */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        /* Print Optimized CSS */
+        @media print {
+            body { 
+                background: white !important; 
+                color: black !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .print-hidden, nav, footer, button, .blob, .AIAssistant, #admin-btn { 
+                display: none !important; 
+            }
+            .max-w-6xl { 
+                max-width: 100% !important; 
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .news-print-container {
+                column-count: 2;
+                column-gap: 1.5rem;
+                padding: 1cm;
+            }
+            .news-article-print {
+                break-inside: avoid;
+                margin-bottom: 1.5rem;
+                border-bottom: 1px solid #ccc;
+                padding-bottom: 1rem;
+            }
+            .glass-card {
+                background: none !important;
+                backdrop-filter: none !important;
+                border: none !important;
+            }
+            h1, h2, h3 { color: black !important; }
+            .grayscale { filter: none !important; }
+            /* Force images to be small in print if they are huge */
+            img { max-height: 200px !important; width: auto !important; }
         }
     </style>
 <script type="importmap">
@@ -147,7 +181,6 @@
 </head>
 <body class="bg-dark-900 text-slate-300 font-sans antialiased selection:bg-brand-600 selection:text-white">
     <div id="root"></div>
-    <!-- Load the main entry point module -->
     <script type="module" src="./index.tsx"></script>
 </body>
 </html>
