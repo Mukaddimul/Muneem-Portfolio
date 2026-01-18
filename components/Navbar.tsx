@@ -81,7 +81,10 @@ const Navbar: React.FC<NavbarProps> = ({ scrolled, name, profilePic, onViewChang
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-6 lg:space-x-8">
               {navLinks.map((link) => {
-                const isActive = (link.view === currentView && (currentView === 'news' || window.location.hash === link.href));
+                // Fixed type narrowing error by casting currentView to string. 
+                // When link.view is 'portfolio', link.view === currentView narrows currentView to 'portfolio', 
+                // making the comparison with 'news' a type error without the cast.
+                const isActive = (link.view === currentView && ((currentView as string) === 'news' || (window.location.hash === link.href)));
                 return (
                   <a
                     key={link.name}

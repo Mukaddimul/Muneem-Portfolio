@@ -90,25 +90,22 @@
             animation: headline-glow 6s ease-in-out infinite;
         }
 
-        @media (max-width: 480px) { .headline { font-size: 8.5vw; } }
-        @media (min-width: 481px) and (max-width: 768px) { .headline { font-size: 8.8vw; } }
-        @media (min-width: 769px) and (max-width: 1200px) { .headline { font-size: 8vw; } }
-        @media (min-width: 1201px) { .headline { font-size: 8.5rem; } }
-
-        /* Ticker Marquee Animation */
+        /* Marquee Animation */
         @keyframes marquee {
             0% { transform: translateX(0); }
             100% { transform: translateX(-50%); }
         }
         .animate-marquee {
             display: flex;
-            width: max-content;
-            animation: marquee 40s linear infinite;
+            width: fit-content;
+            animation: marquee 35s linear infinite;
         }
-        /* Keep scrolling always as requested */
-        .animate-marquee:hover {
-            animation-play-state: running;
-        }
+
+        @media (max-width: 480px) { .headline { font-size: 7.2vw; } }
+        @media (min-width: 481px) and (max-width: 768px) { .headline { font-size: 7.5vw; } }
+        @media (min-width: 769px) and (max-width: 1200px) { .headline { font-size: 7.8vw; } }
+        /* Adjusted for "THE CHANGEMAKER" to fit edge-to-edge on desktop */
+        @media (min-width: 1201px) { .headline { font-size: 7.7rem; letter-spacing: -0.02em; } }
 
         html {
             scrollbar-width: thin;

@@ -58,7 +58,7 @@ export interface NewsPost {
   content: string;
   date: string; // ISO string for sorting/filtering
   author: string;
-  image?: string;
+  images: string[]; // Array for multiple photos
   likes: number;
   comments: NewsComment[];
 }

@@ -44,10 +44,6 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const whatsappLink = `https://wa.me/${profile.phone.replace(/[^0-9]/g, '')}`;
 
   // Dynamic styles for the prominent background cover photo
@@ -135,13 +131,6 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
             className="bg-brand-600 hover:bg-brand-700 text-white px-8 md:px-10 py-4 rounded-full font-bold transition-all hover:scale-105 shadow-2xl shadow-brand-600/30 flex items-center justify-center gap-3 text-base md:text-lg w-full sm:w-auto"
           >
             View Portfolio <i className="fa-solid fa-arrow-right"></i>
-          </button>
-          
-          <button 
-            onClick={handlePrint}
-            className="flex-1 sm:flex-none glass-card hover:bg-slate-800 text-white px-8 md:px-10 py-4 rounded-full font-bold transition-all hover:scale-105 border border-slate-600 flex items-center justify-center gap-3 text-base md:text-lg backdrop-blur-md w-full sm:w-auto"
-          >
-            <i className="fa-solid fa-print"></i> Print News Edition
           </button>
 
           <button 

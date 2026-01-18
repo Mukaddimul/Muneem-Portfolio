@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import { PortfolioData, Project, TimelineItem, Skill, Award, NewsPost, ContactInquiry, Achievement } from '../types';
-import { supabase } from '../supabaseClient';
+import { supabase, checkCloudHealth } from '../supabaseClient';
 
 interface AdminPanelProps {
   data: PortfolioData;
@@ -17,9 +18,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
   const [isLoadingInquiries, setIsLoadingInquiries] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [cloudOk, setCloudOk] = useState(true);
   
   // Cropping State
-  const [cropModal, setCropModal] = useState<{ isOpen: boolean; image: string; field: 'profilePic' | 'coverPhoto' | { type: 'project' | 'experience' | 'news', id: string } }>({
+  const [cropModal, setCropModal] = useState<{ 
+    isOpen: boolean; 
+    image: string; 
+    field: 'profilePic' | 'coverPhoto' | { type: 'project' | 'experience', id: string } 
+  }>({
     isOpen: false,
     image: '',
     field: 'profilePic'
@@ -36,7 +42,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
     { id: 'projects', label: 'Projects', icon: 'fa-diagram-project' },
     { id: 'experience', label: 'Experience', icon: 'fa-timeline' },
     { id: 'awards', label: 'Awards', icon: 'fa-medal' },
-    { id: 'news', label: 'News Desk', icon: 'fa-newspaper' },
+    { id: 'news', label: 'News Archive', icon: 'fa-newspaper' },
     { id: 'messages', label: 'Visitor Entries', icon: 'fa-inbox' },
   ];
 
@@ -44,6 +50,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
     const originalStyle = window.getComputedStyle(document.body).overflow;
     document.body.style.overflow = 'hidden';
     fetchInquiries();
+    
+    // Check cloud health on open
+    checkCloudHealth().then(res => setCloudOk(res.ok));
+
     return () => { document.body.style.overflow = originalStyle; };
   }, []);
 
@@ -135,6 +145,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
     }
   };
 
+  const handleNewsPhotoUpload = (postId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setEditData(prev => ({
+          ...prev,
+          news: prev.news.map(n => {
+            if (n.id === postId) {
+              const currentImages = n.images || [];
+              if (currentImages.length >= 6) return n;
+              return { ...n, images: [...currentImages, base64] };
+            }
+            return n;
+          })
+        }));
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    }
+  };
+
   const handleCropSave = async () => {
     if (!croppedAreaPixels || !cropModal.image) return;
     setIsProcessingImage(true);
@@ -151,8 +185,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           setEditData({ ...editData, projects: editData.projects.map(p => p.id === id ? { ...p, logo: compressed } : p) });
         } else if (type === 'experience') {
           setEditData({ ...editData, timeline: editData.timeline.map(t => t.id === id ? { ...t, logo: compressed } : t) });
-        } else if (type === 'news') {
-          setEditData({ ...editData, news: editData.news.map(n => n.id === id ? { ...n, image: compressed } : n) });
         }
       }
       
@@ -172,15 +204,28 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
     }
   };
 
+  const deleteNewsImage = (postId: string, imgIndex: number) => {
+    setEditData({
+      ...editData,
+      news: editData.news.map(n => n.id === postId ? { ...n, images: n.images.filter((_, i) => i !== imgIndex) } : n)
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-[#111827] flex flex-col md:flex-row overflow-hidden animate-in fade-in duration-300 font-sans selection:bg-blue-600/30 selection:text-white">
-      {/* Sidebar - Matching Screenshot 1 */}
+      {/* Sidebar */}
       <div className="w-full md:w-80 bg-[#1e293b]/50 border-r border-slate-800 p-8 flex flex-col shrink-0 shadow-2xl">
-        <div className="flex items-center gap-4 mb-12 px-2">
+        <div className="flex items-center gap-4 mb-8 px-2">
           <div className="w-12 h-12 bg-[#2563eb] rounded-2xl flex items-center justify-center shadow-xl shadow-blue-600/30">
             <i className="fa-solid fa-user-gear text-white text-xl"></i>
           </div>
           <h2 className="text-white font-black uppercase tracking-tight text-2xl">Admin Desk</h2>
+        </div>
+
+        {/* Sync Indicator */}
+        <div className={`mx-2 mb-6 p-3 rounded-xl border flex items-center gap-3 transition-colors ${cloudOk ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : 'bg-orange-500/5 border-orange-500/20 text-orange-400'}`}>
+          <div className={`w-2 h-2 rounded-full ${cloudOk ? 'bg-emerald-400' : 'bg-orange-400 animate-pulse'}`}></div>
+          <span className="text-[10px] font-black uppercase tracking-widest">{cloudOk ? 'Cloud Sync Active' : 'Offline Mode (Local Only)'}</span>
         </div>
 
         <nav className="flex-1 space-y-2 mb-10 overflow-y-auto no-scrollbar pr-1">
@@ -201,7 +246,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
         <div className="space-y-4 pt-8 border-t border-slate-800/80">
           <button onClick={handleSaveClick} disabled={isSaving} className="w-full bg-[#10b981] hover:bg-[#059669] text-white py-4 rounded-2xl font-bold text-base transition-all duration-300 flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/20 disabled:opacity-50 uppercase tracking-widest active:scale-95">
             {isSaving ? <i className="fa-solid fa-circle-notch animate-spin"></i> : <i className="fa-solid fa-lock text-sm"></i>}
-            Save & Sync
+            {cloudOk ? 'Save & Sync' : 'Save Locally'}
           </button>
           <button onClick={onLogout} className="w-full border-2 border-red-500/20 hover:bg-red-500/10 text-red-500 py-4 rounded-2xl font-bold text-base transition-all duration-300 flex items-center justify-center gap-3 active:scale-95">
             <i className="fa-solid fa-power-off"></i>
@@ -215,7 +260,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
         ref={mainScrollRef}
         className="flex-1 overflow-y-auto p-8 md:p-16 space-y-32 bg-gradient-to-br from-[#111827] via-[#111827] to-[#1e293b] custom-scrollbar pb-48"
       >
-        {/* General Profile - Matching Screenshot 2 */}
+        {/* General Profile */}
         <section id="admin-section-general" className="scroll-mt-20">
           <div className="mb-12">
             <h3 className="text-3xl font-black text-white uppercase tracking-tight mb-4">General Profile</h3>
@@ -291,7 +336,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           </div>
         </section>
 
-        {/* Expertise Matrix - Matching Screenshot 3 */}
+        {/* Expertise Matrix */}
         <section id="admin-section-skills" className="scroll-mt-20">
           <div className="flex items-center justify-between mb-12">
             <div>
@@ -372,7 +417,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           </div>
         </section>
 
-        {/* Featured Initiatives - Matching Screenshot 4 */}
+        {/* Featured Initiatives */}
         <section id="admin-section-projects" className="scroll-mt-20">
           <div className="flex items-center justify-between mb-12">
             <div>
@@ -526,7 +571,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           </div>
         </section>
 
-        {/* Experience History - Matching Screenshot 5 */}
+        {/* Experience History */}
         <section id="admin-section-experience" className="scroll-mt-20">
           <div className="flex items-center justify-between mb-12">
             <div>
@@ -558,7 +603,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
                   <div className="md:w-56 shrink-0 space-y-6">
                     <div className="w-24 h-24 rounded-2xl bg-[#111827] border-2 border-slate-800 flex items-center justify-center overflow-hidden p-2 shadow-inner">
                       {item.logo ? (
-                        <img src={item.logo} className="w-full h-full object-contain" alt="Org Logo" />
+                        <img src={item.logo} alt="Org Logo" className="w-full h-full object-contain p-2" />
                       ) : (
                         <i className={`fa-solid ${item.icon} text-3xl text-slate-700`}></i>
                       )}
@@ -659,7 +704,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           </div>
         </section>
 
-        {/* Awards & Accolades - Matching Screenshot 6 */}
+        {/* Awards & Accolades */}
         <section id="admin-section-awards" className="scroll-mt-20">
           <div className="flex items-center justify-between mb-12">
             <div>
@@ -716,16 +761,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           </div>
         </section>
 
-        {/* News Desk Archive - Matching Screenshot 7 */}
+        {/* News Desk Archive */}
         <section id="admin-section-news" className="scroll-mt-20">
           <div className="flex items-center justify-between mb-12">
             <div>
-              <h3 className="text-3xl font-black text-white uppercase tracking-tight mb-4">News Desk Archive</h3>
+              <h3 className="text-3xl font-black text-white uppercase tracking-tight mb-4">News Archive</h3>
               <div className="h-[2px] w-48 bg-slate-800"></div>
             </div>
             <button 
               onClick={() => {
-                const newPost: NewsPost = { id: Date.now().toString(), title: 'Breaking News Headline', content: 'Story details...', author: 'News Desk', date: new Date().toISOString(), likes: 0, comments: [] };
+                const newPost: NewsPost = { id: Date.now().toString(), title: 'Breaking News Headline', content: 'Story details...', author: 'News Desk', date: new Date().toISOString(), likes: 0, comments: [], images: [] };
                 setEditData({ ...editData, news: [newPost, ...editData.news] });
               }}
               className="bg-[#2563eb] hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95"
@@ -744,47 +789,61 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
                   <i className="fa-solid fa-trash-can text-xl"></i>
                 </button>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-                   <div className="lg:col-span-4 space-y-6">
-                    <div className="aspect-square rounded-[2rem] bg-[#111827] border-2 border-slate-800 flex items-center justify-center overflow-hidden relative group/nimg shadow-inner">
-                      {post.image ? (
-                        <img src={post.image} className="w-full h-full object-cover" alt="Article" />
-                      ) : (
-                        <i className="fa-solid fa-newspaper text-5xl text-slate-700"></i>
-                      )}
-                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover/nimg:opacity-100 transition-opacity">
-                         <input type="file" id={`nPic-${post.id}`} className="hidden" accept="image/*" onChange={(e) => handleImageUploadTrigger({type: 'news', id: post.id}, e)} />
-                         <label htmlFor={`nPic-${post.id}`} className="bg-white/10 text-white p-3 rounded-full cursor-pointer hover:bg-white/20"><i className="fa-solid fa-camera"></i></label>
-                       </div>
-                    </div>
-                    <div className="bg-[#111827] border border-slate-800 rounded-xl px-4 py-3 flex items-center justify-between shadow-inner">
-                       <span className="text-blue-400 font-black text-[10px] uppercase tracking-widest">{new Date(post.date).toLocaleDateString()}</span>
-                       <i className="fa-solid fa-calendar text-slate-700 text-xs"></i>
-                    </div>
-                  </div>
+                <div className="space-y-6 mb-8">
+                  <input 
+                    value={post.title} 
+                    onChange={(e) => {
+                      const newNews = [...editData.news];
+                      newNews[nIdx].title = e.target.value;
+                      setEditData({ ...editData, news: newNews });
+                    }}
+                    className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-2xl px-6 py-4 text-white font-black italic uppercase tracking-tighter outline-none focus:border-blue-500 transition-all text-xl shadow-inner" 
+                    placeholder="Headline..."
+                  />
+                  <textarea 
+                    value={post.content} 
+                    onChange={(e) => {
+                      const newNews = [...editData.news];
+                      newNews[nIdx].content = e.target.value;
+                      setEditData({ ...editData, news: newNews });
+                    }}
+                    rows={6} 
+                    className="w-full bg-[#111827]/50 border-2 border-slate-800/50 rounded-[1.5rem] px-6 py-4 text-slate-300 font-bold outline-none focus:border-blue-500 transition-all text-sm leading-relaxed shadow-inner" 
+                    placeholder="Article text..."
+                  />
+                </div>
 
-                  <div className="lg:col-span-8 space-y-6">
-                    <input 
-                      value={post.title} 
-                      onChange={(e) => {
-                        const newNews = [...editData.news];
-                        newNews[nIdx].title = e.target.value;
-                        setEditData({ ...editData, news: newNews });
-                      }}
-                      className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-2xl px-6 py-4 text-white font-black italic uppercase tracking-tighter outline-none focus:border-blue-500 transition-all text-xl shadow-inner" 
-                      placeholder="Headline..."
-                    />
-                    <textarea 
-                      value={post.content} 
-                      onChange={(e) => {
-                        const newNews = [...editData.news];
-                        newNews[nIdx].content = e.target.value;
-                        setEditData({ ...editData, news: newNews });
-                      }}
-                      rows={6} 
-                      className="w-full bg-[#111827]/50 border-2 border-slate-800/50 rounded-[1.5rem] px-6 py-4 text-slate-300 font-bold outline-none focus:border-blue-500 transition-all text-sm leading-relaxed shadow-inner" 
-                      placeholder="Article text..."
-                    />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Photo Gallery (Direct Upload - Max 6 photos)</label>
+                    <span className="text-[9px] font-bold text-slate-600 uppercase">{(post.images || []).length} / 6</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {(post.images || []).map((img, iIdx) => (
+                      <div key={iIdx} className="relative aspect-square rounded-xl bg-[#111827] border border-slate-800 group overflow-hidden">
+                        <img src={img} className="w-full h-full object-cover" alt={`Post image ${iIdx + 1}`} />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+                          <button 
+                            onClick={() => deleteNewsImage(post.id, iIdx)}
+                            className="text-white hover:text-red-400 transition-colors w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center backdrop-blur-md"
+                          >
+                            <i className="fa-solid fa-trash text-sm"></i>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {(post.images || []).length < 6 && (
+                      <label className="aspect-square rounded-xl bg-slate-800/50 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-800 hover:border-slate-500 transition-all group">
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept="image/*" 
+                          onChange={(e) => handleNewsPhotoUpload(post.id, e)} 
+                        />
+                        <i className="fa-solid fa-plus text-slate-500 mb-2 group-hover:scale-125 transition-transform"></i>
+                        <span className="text-[9px] font-black text-slate-600 uppercase">Add Photo</span>
+                      </label>
+                    )}
                   </div>
                 </div>
               </div>
@@ -792,7 +851,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           </div>
         </section>
 
-        {/* Inquiry Inbox - Matching Screenshot 8 */}
+        {/* Inquiry Inbox */}
         <section id="admin-section-messages" className="scroll-mt-20">
           <div className="flex items-center justify-between mb-12">
             <div>
@@ -828,7 +887,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
         </section>
       </div>
 
-      {/* Modern Cropper Modal */}
+      {/* Modern Cropper Modal - Only for profile/experience/project images */}
       {cropModal.isOpen && (
         <div className="fixed inset-0 z-[200] bg-[#0f172a] flex flex-col p-4 md:p-10">
           <div className="flex-1 relative rounded-[3rem] overflow-hidden border-4 border-slate-800 shadow-2xl">
@@ -852,7 +911,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
                 />
              </div>
              <div className="flex gap-4">
-                <button onClick={() => setCropModal({ ...cropModal, isOpen: false })} className="px-10 py-4 bg-slate-800 text-white rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-slate-700 transition-colors border border-slate-700 active:scale-95">Cancel</button>
+                <button onClick={() => setCropModal({ ...cropModal, isOpen: false } as any)} className="px-10 py-4 bg-slate-800 text-white rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-slate-700 transition-colors border border-slate-700 active:scale-95">Cancel</button>
                 <button onClick={handleCropSave} disabled={isProcessingImage} className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-blue-500 shadow-xl shadow-blue-600/30 disabled:opacity-50 transition-all active:scale-95 flex items-center gap-3">
                   {isProcessingImage ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-solid fa-check"></i>}
                   Finalize & Save

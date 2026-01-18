@@ -413,6 +413,7 @@ export const INITIAL_DATA: PortfolioData = {
       content: 'In a significant academic and leadership milestone, MD. Mukaddimul Haque Muneem has been nominated as one of the Top 50 Leaders in India for his contributions to cross-border youth empowerment and biomedical innovation concepts. The nomination highlights his impact-driven approach to social leadership.',
       date: '2023-10-15',
       author: 'News Desk',
+      images: [],
       likes: 42,
       comments: [
         { id: 'c1', userName: 'Anzir', text: 'Huge milestone! Congratulations brother.', date: 'Oct 16, 2023' }
@@ -424,6 +425,7 @@ export const INITIAL_DATA: PortfolioData = {
       content: 'The PlastiXide project, led by Muneem, has emerged victorious in the recent Civic Tech Challenge. The project addresses plastic waste management using engineering solutions tailored for the Bangladeshi landscape. The judges praised the scalability and humanitarian focus of the initiative.',
       date: '2024-03-10',
       author: 'Tech Reporter',
+      images: [],
       likes: 85,
       comments: []
     }
