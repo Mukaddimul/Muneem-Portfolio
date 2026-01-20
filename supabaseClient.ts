@@ -6,8 +6,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: {
-    // Increased fetch timeout for global client to 30s for stability
-    fetch: (input, init) => fetch(input, { ...init, signal: init?.signal || AbortSignal.timeout(30000) }),
+    // Increased fetch timeout to 60s to handle large JSON blobs (base64 images) 
+    // and mitigate the 57014 Postgres statement timeout.
+    fetch: (input, init) => fetch(input, { ...init, signal: init?.signal || AbortSignal.timeout(60000) }),
   },
   auth: {
     persistSession: true,
@@ -22,7 +23,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 export const checkCloudHealth = async (): Promise<{ ok: boolean; message: string }> => {
   try {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 10000); // 10s for health check
+    const id = setTimeout(() => controller.abort(), 15000); // 15s for health check
 
     const { error, status } = await supabase
       .from('portfolio_content')
