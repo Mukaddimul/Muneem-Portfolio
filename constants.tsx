@@ -10,7 +10,11 @@ export const INITIAL_DATA: PortfolioData = {
     location: "Mirpur 14, Dhaka, Bangladesh",
     bio: "A disciplined and impact-driven undergraduate merging Biomedical Engineering with Creative Design and Social Leadership. Developing technology-driven solutions for a sustainable future in Bangladesh.",
     profilePic: "profile.png",
-    coverPhoto: "cover.png"
+    coverPhoto: "cover.png",
+    linkedin: "https://www.linkedin.com/in/md-mukaddimul-haque-muneem",
+    facebook: "https://www.facebook.com/mukaddimul.muneem",
+    instagram: "https://www.instagram.com/m.h.anzir10",
+    telegram: "https://t.me/Mhanzir10"
   },
   projects: [
     {

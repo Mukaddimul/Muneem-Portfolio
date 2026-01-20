@@ -790,27 +790,67 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
                 </button>
 
                 <div className="space-y-6 mb-8">
-                  <input 
-                    value={post.title} 
-                    onChange={(e) => {
-                      const newNews = [...editData.news];
-                      newNews[nIdx].title = e.target.value;
-                      setEditData({ ...editData, news: newNews });
-                    }}
-                    className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-2xl px-6 py-4 text-white font-black italic uppercase tracking-tighter outline-none focus:border-blue-500 transition-all text-xl shadow-inner" 
-                    placeholder="Headline..."
-                  />
-                  <textarea 
-                    value={post.content} 
-                    onChange={(e) => {
-                      const newNews = [...editData.news];
-                      newNews[nIdx].content = e.target.value;
-                      setEditData({ ...editData, news: newNews });
-                    }}
-                    rows={6} 
-                    className="w-full bg-[#111827]/50 border-2 border-slate-800/50 rounded-[1.5rem] px-6 py-4 text-slate-300 font-bold outline-none focus:border-blue-500 transition-all text-sm leading-relaxed shadow-inner" 
-                    placeholder="Article text..."
-                  />
+                  {/* Headline Row */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block ml-2">Headline</label>
+                    <input 
+                      value={post.title} 
+                      onChange={(e) => {
+                        const newNews = [...editData.news];
+                        newNews[nIdx].title = e.target.value;
+                        setEditData({ ...editData, news: newNews });
+                      }}
+                      className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-2xl px-6 py-4 text-white font-black italic uppercase tracking-tighter outline-none focus:border-blue-500 transition-all text-xl shadow-inner" 
+                      placeholder="Headline..."
+                    />
+                  </div>
+
+                  {/* Author and Date Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block ml-2">Author</label>
+                      <input 
+                        value={post.author} 
+                        onChange={(e) => {
+                          const newNews = [...editData.news];
+                          newNews[nIdx].author = e.target.value;
+                          setEditData({ ...editData, news: newNews });
+                        }}
+                        className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-xl px-5 py-3 text-sm text-slate-200 font-bold outline-none focus:border-blue-500/50 shadow-inner" 
+                        placeholder="e.g. News Desk"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block ml-2">Publication Date</label>
+                      <input 
+                        type="date"
+                        value={post.date.split('T')[0]} 
+                        onChange={(e) => {
+                          const newNews = [...editData.news];
+                          // Convert the date picker YYYY-MM-DD to ISO string while preserving the time if possible or just fresh ISO
+                          newNews[nIdx].date = new Date(e.target.value).toISOString();
+                          setEditData({ ...editData, news: newNews });
+                        }}
+                        className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-xl px-5 py-3 text-sm text-blue-400 font-bold outline-none focus:border-blue-500/50 shadow-inner [color-scheme:dark]" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Content Row */}
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block ml-2">Article Content</label>
+                    <textarea 
+                      value={post.content} 
+                      onChange={(e) => {
+                        const newNews = [...editData.news];
+                        newNews[nIdx].content = e.target.value;
+                        setEditData({ ...editData, news: newNews });
+                      }}
+                      rows={6} 
+                      className="w-full bg-[#111827]/50 border-2 border-slate-800/50 rounded-[1.5rem] px-6 py-4 text-slate-300 font-bold outline-none focus:border-blue-500 transition-all text-sm leading-relaxed shadow-inner" 
+                      placeholder="Article text..."
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-4">

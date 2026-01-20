@@ -82,6 +82,10 @@ export interface Profile {
   bio: string;
   profilePic: string;
   coverPhoto: string;
+  linkedin?: string;
+  facebook?: string;
+  instagram?: string;
+  telegram?: string;
 }
 
 export interface ChatMessage {

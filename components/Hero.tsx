@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Profile } from '../types';
 
@@ -121,7 +122,8 @@ const Hero: React.FC<HeroProps> = ({ profile, projectCount }) => {
           <span className="text-gradient block whitespace-nowrap">{secondLine}</span>
         </h1>
 
-        <p className="max-w-3xl mx-auto text-base md:text-2xl text-slate-200 mb-12 leading-relaxed font-semibold drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] px-4">
+        {/* Updated Hero Bio with Justified alignment and wider container for consistency */}
+        <p className="max-w-4xl mx-auto text-base md:text-2xl text-slate-200 mb-12 leading-relaxed font-semibold drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] px-4 text-justify">
           {profile.bio}
         </p>
 
