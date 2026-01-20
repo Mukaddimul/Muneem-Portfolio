@@ -6,7 +6,7 @@ import { supabase, checkCloudHealth } from '../supabaseClient';
 
 interface AdminPanelProps {
   data: PortfolioData;
-  onSave: (newData: PortfolioData) => void;
+  onSave: (newData: PortfolioData) => Promise<boolean>;
   onLogout: () => void;
   onClose: () => void;
 }
@@ -18,6 +18,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
   const [isLoadingInquiries, setIsLoadingInquiries] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [cloudOk, setCloudOk] = useState(true);
   
   // Cropping State
@@ -76,11 +77,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
   const handleSaveClick = async () => {
     if (isSaving) return;
     setIsSaving(true);
+    setSaveStatus('saving');
+    
     try {
-      await onSave(editData);
+      const success = await onSave(editData);
+      if (success) {
+        setSaveStatus('success');
+        // Wait a bit to show success before closing
+        setTimeout(() => {
+          onClose();
+        }, 1500);
+      } else {
+        setSaveStatus('error');
+        setIsSaving(false);
+      }
     } catch (err) {
       console.error("Save failed:", err);
-    } finally {
+      setSaveStatus('error');
       setIsSaving(false);
     }
   };
@@ -244,11 +257,32 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
         </nav>
 
         <div className="space-y-4 pt-8 border-t border-slate-800/80">
-          <button onClick={handleSaveClick} disabled={isSaving} className="w-full bg-[#10b981] hover:bg-[#059669] text-white py-4 rounded-2xl font-bold text-base transition-all duration-300 flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/20 disabled:opacity-50 uppercase tracking-widest active:scale-95">
-            {isSaving ? <i className="fa-solid fa-circle-notch animate-spin"></i> : <i className="fa-solid fa-lock text-sm"></i>}
-            {cloudOk ? 'Save & Sync' : 'Save Locally'}
+          <button 
+            onClick={handleSaveClick} 
+            disabled={isSaving} 
+            className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-300 flex items-center justify-center gap-3 shadow-lg disabled:opacity-80 uppercase tracking-widest active:scale-95 ${
+              saveStatus === 'success' ? 'bg-emerald-600 text-white shadow-emerald-600/20' : 
+              saveStatus === 'error' ? 'bg-red-600 text-white shadow-red-600/20' :
+              'bg-[#10b981] hover:bg-[#059669] text-white shadow-emerald-600/20'
+            }`}
+          >
+            {saveStatus === 'saving' ? <i className="fa-solid fa-circle-notch animate-spin"></i> : 
+             saveStatus === 'success' ? <i className="fa-solid fa-cloud-check"></i> :
+             saveStatus === 'error' ? <i className="fa-solid fa-triangle-exclamation"></i> :
+             <i className="fa-solid fa-lock text-sm"></i>}
+            {saveStatus === 'saving' ? 'Synchronizing...' : 
+             saveStatus === 'success' ? 'Database Updated!' :
+             saveStatus === 'error' ? 'Sync Failed!' :
+             (cloudOk ? 'Save & Sync' : 'Save Locally')}
           </button>
-          <button onClick={onLogout} className="w-full border-2 border-red-500/20 hover:bg-red-500/10 text-red-500 py-4 rounded-2xl font-bold text-base transition-all duration-300 flex items-center justify-center gap-3 active:scale-95">
+          <button 
+            onClick={onClose} 
+            disabled={isSaving}
+            className="w-full border-2 border-slate-700 hover:bg-slate-800 text-slate-400 py-4 rounded-2xl font-bold text-base transition-all duration-300 flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button onClick={onLogout} className="w-full text-red-500/60 hover:text-red-500 py-2 rounded-2xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-3 active:scale-95">
             <i className="fa-solid fa-power-off"></i>
             Logout
           </button>
@@ -731,30 +765,51 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
                 >
                   <i className="fa-solid fa-trash-can text-sm"></i>
                 </button>
-                <div className="w-16 h-16 rounded-2xl bg-[#111827] border border-slate-800 flex items-center justify-center text-2xl text-slate-500 shrink-0 shadow-inner">
-                  <i className={`fa-solid ${award.icon}`}></i>
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-[#111827] border border-slate-800 flex items-center justify-center text-2xl text-slate-500 shrink-0 shadow-inner">
+                    <i className={`fa-solid ${award.icon}`}></i>
+                  </div>
+                  <div className="w-full">
+                    <label className="text-[8px] font-black uppercase text-slate-600 mb-1 block">Icon Class</label>
+                    <input 
+                      value={award.icon} 
+                      onChange={(e) => {
+                        const newAwards = [...editData.awards];
+                        newAwards[aIdx].icon = e.target.value;
+                        setEditData({ ...editData, awards: newAwards });
+                      }}
+                      className="w-full bg-[#111827] border border-slate-800/50 rounded-lg px-2 py-1 text-[10px] text-brand-400 font-mono focus:outline-none" 
+                      placeholder="fa-award"
+                    />
+                  </div>
                 </div>
-                <div className="flex-1 space-y-3">
-                  <input 
-                    value={award.title} 
-                    onChange={(e) => {
-                      const newAwards = [...editData.awards];
-                      newAwards[aIdx].title = e.target.value;
-                      setEditData({ ...editData, awards: newAwards });
-                    }}
-                    className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-xl px-4 py-3 text-white font-black outline-none focus:border-blue-500 transition-all shadow-inner" 
-                    placeholder="Award Title"
-                  />
-                  <input 
-                    value={award.detail} 
-                    onChange={(e) => {
-                      const newAwards = [...editData.awards];
-                      newAwards[aIdx].detail = e.target.value;
-                      setEditData({ ...editData, awards: newAwards });
-                    }}
-                    className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-xl px-4 py-3 text-blue-400 font-bold outline-none focus:border-blue-500 shadow-inner" 
-                    placeholder="Recipient/Details"
-                  />
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <label className="text-[9px] font-black uppercase text-slate-500 mb-1 block ml-1">Award Title</label>
+                    <input 
+                      value={award.title} 
+                      onChange={(e) => {
+                        const newAwards = [...editData.awards];
+                        newAwards[aIdx].title = e.target.value;
+                        setEditData({ ...editData, awards: newAwards });
+                      }}
+                      className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-xl px-4 py-3 text-white font-black outline-none focus:border-blue-500 transition-all shadow-inner text-sm" 
+                      placeholder="International Leadership Award"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase text-slate-500 mb-1 block ml-1">Achievement Detail</label>
+                    <input 
+                      value={award.detail} 
+                      onChange={(e) => {
+                        const newAwards = [...editData.awards];
+                        newAwards[aIdx].detail = e.target.value;
+                        setEditData({ ...editData, awards: newAwards });
+                      }}
+                      className="w-full bg-[#111827] border-2 border-slate-800/50 rounded-xl px-4 py-3 text-blue-400 font-bold outline-none focus:border-blue-500 shadow-inner text-xs" 
+                      placeholder="2023 Recipient / Nominated"
+                    />
+                  </div>
                 </div>
               </div>
             ))}

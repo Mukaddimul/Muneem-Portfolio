@@ -87,14 +87,17 @@ const App: React.FC = () => {
 
   const fetchFromCloud = async (): Promise<PortfolioData | null> => {
     try {
+      // Prioritize freshness from the cloud
       const { data, error } = await supabase
         .from('portfolio_content')
         .select('content')
         .eq('id', 'main_config')
         .maybeSingle();
+      
       if (error) throw error;
       return data?.content || null;
     } catch (err) {
+      console.error("Cloud fetch error:", err);
       return null;
     }
   };
@@ -103,7 +106,7 @@ const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Parallel fetch for speed
+      // Step 1: Check Cloud Health & Fetch Fresh Data
       const [freshData, health] = await Promise.all([
         fetchFromCloud(),
         checkCloudHealth()
@@ -112,23 +115,38 @@ const App: React.FC = () => {
       setCloudStatus(health);
 
       if (freshData) {
+        // SUCCESS: Cloud data found
         setPortfolioData(freshData);
-        setLocalBackup(freshData);
+        await setLocalBackup(freshData);
         setIsLoading(false);
         return;
       }
 
-      // Fallback to local only if cloud fails
+      // Step 2: If Cloud returns nothing (empty DB), Bootstrap it
+      if (health.ok && !freshData) {
+        setCloudStatus({ ok: true, message: 'Bootstrapping Database...' });
+        setPortfolioData(INITIAL_DATA);
+        // Save the initial data to cloud so it's permanent
+        await supabase
+          .from('portfolio_content')
+          .upsert({ id: 'main_config', content: INITIAL_DATA });
+        await setLocalBackup(INITIAL_DATA);
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 3: If Cloud is unreachable, try local backup
       const backup = await getLocalBackup();
       if (backup) {
         setPortfolioData(backup);
-        setCloudStatus({ ok: false, message: 'Offline Mode' });
+        setCloudStatus({ ok: false, message: 'Offline Mode (Local Cache)' });
       } else {
-        // Absolute fallback to initial data if everything fails
+        // Absolute last resort
         setPortfolioData(INITIAL_DATA);
-        setCloudStatus({ ok: false, message: 'Default Data' });
+        setCloudStatus({ ok: false, message: 'Using Default Factory Data' });
       }
     } catch (err) {
+      console.error("Initialization error:", err);
       const backup = await getLocalBackup();
       setPortfolioData(backup || INITIAL_DATA);
     } finally {
@@ -144,22 +162,32 @@ const App: React.FC = () => {
   }, []);
 
   const persistData = async (newData: PortfolioData): Promise<boolean> => {
-    setPortfolioData(newData);
-    await setLocalBackup(newData);
     try {
+      // Attempt cloud sync first
       const { error } = await supabase
         .from('portfolio_content')
-        .upsert({ id: 'main_config', content: newData });
+        .upsert({ id: 'main_config', content: newData }, { onConflict: 'id' });
+      
       if (error) throw error;
+
+      // Only update local state and backup on successful DB commit
+      setPortfolioData(newData);
+      await setLocalBackup(newData);
+      setCloudStatus({ ok: true, message: 'Changes Committed to Cloud' });
       return true;
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Persistence error:", err);
+      setCloudStatus({ ok: false, message: 'Cloud Sync Failed!' });
+      // Still update locally so user can continue, but warn them
+      setPortfolioData(newData);
+      await setLocalBackup(newData);
       return false;
     }
   };
 
-  const handleSave = async (newData: PortfolioData) => {
-    setIsAdminOpen(false);
-    await persistData(newData);
+  const handleSave = async (newData: PortfolioData): Promise<boolean> => {
+    // Note: AdminPanel now handles its own closing based on this result
+    return await persistData(newData);
   };
 
   const handleAdminClick = () => {
@@ -213,14 +241,13 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Skeleton Loader for initial state
   if (isLoading || !portfolioData) {
     return (
       <div className="min-h-screen bg-dark-900 flex flex-col items-center justify-center text-white p-6">
         <div className="relative mb-8">
           <div className="w-20 h-20 border-4 border-brand-600/10 border-t-brand-600 rounded-full animate-spin"></div>
           <div className="absolute inset-0 flex items-center justify-center">
-            <i className="fa-solid fa-bolt text-brand-500 text-xl animate-pulse"></i>
+            <i className="fa-solid fa-cloud-arrow-down text-brand-500 text-xl animate-pulse"></i>
           </div>
         </div>
         <div className="space-y-4 w-full max-w-xs">
@@ -228,7 +255,7 @@ const App: React.FC = () => {
           <div className="h-4 bg-slate-800 rounded-full w-2/3 mx-auto animate-pulse"></div>
         </div>
         <p className="mt-8 text-slate-500 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">
-          Syncing Latest Dispatches
+          Synchronizing with Master Database
         </p>
       </div>
     );
