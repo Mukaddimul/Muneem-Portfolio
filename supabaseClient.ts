@@ -4,11 +4,45 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = 'https://hgwoxtzchjetwlnpmfax.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnd294dHpjaGpldHdsbnBtZmF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5OTcwNzQsImV4cCI6MjA4MzU3MzA3NH0.Vc8mASD2DuLqR5d3yWlhj1xZM9AZP0GNPeDXSyTXzDg';
 
+/**
+ * Custom fetcher with exponential backoff and significantly increased timeout logic.
+ * Retries up to 3 times on failure with optimized delays.
+ */
+const customFetch = async (input: RequestInfo | URL, init?: RequestInit, retries = 3, backoff = 800): Promise<Response> => {
+  const controller = new AbortController();
+  // Increased timeout threshold to 30s for resilient session establishment
+  const timeoutId = setTimeout(() => controller.abort(), 30000); 
+
+  try {
+    const response = await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+
+    // If it's a server error or rate limit, retry with backoff
+    if (!response.ok && retries > 0 && [500, 502, 503, 504, 429].includes(response.status)) {
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return customFetch(input, init, retries - 1, backoff * 2);
+    }
+
+    return response;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    
+    // Retry on network errors or timeouts
+    if (retries > 0 && (error.name === 'AbortError' || error.name === 'TypeError')) {
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return customFetch(input, init, retries - 1, backoff * 2);
+    }
+    throw error;
+  }
+};
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: {
-    // Increased fetch timeout to 60s to handle large JSON blobs (base64 images) 
-    // and mitigate the 57014 Postgres statement timeout.
-    fetch: (input, init) => fetch(input, { ...init, signal: init?.signal || AbortSignal.timeout(60000) }),
+    fetch: customFetch,
   },
   auth: {
     persistSession: true,
@@ -18,32 +52,25 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 /**
  * Utility to check if Supabase is reachable. 
- * Optimized to be lightweight and fast.
+ * Optimized for speed to reduce initial handshake delays.
  */
 export const checkCloudHealth = async (): Promise<{ ok: boolean; message: string }> => {
   try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 15000); // 15s for health check
-
     const { error, status } = await supabase
       .from('portfolio_content')
       .select('id')
       .eq('id', 'main_config')
       .limit(1)
-      .abortSignal(controller.signal)
       .maybeSingle();
     
-    clearTimeout(id);
-    
     if (error) {
-      if (status === 503 || status === 404) return { ok: false, message: 'Project Paused' };
-      if (error.code === 'PGRST301') return { ok: false, message: 'Auth Error' };
-      if (error.code === '42P01') return { ok: false, message: 'Table Missing' };
-      return { ok: false, message: 'Cloud Busy' };
+      if (status === 503 || status === 404) return { ok: false, message: 'Service Unavailable' };
+      if (error.code === 'PGRST301') return { ok: false, message: 'Unauthorized' };
+      return { ok: false, message: 'Cloud Latency' };
     }
     
-    return { ok: true, message: 'Cloud Active' };
+    return { ok: true, message: 'Secure Session Established' };
   } catch (err: any) {
-    return { ok: false, message: 'Offline' };
+    return { ok: false, message: 'Offline Mode' };
   }
 };

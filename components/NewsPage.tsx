@@ -1,11 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { NewsPost, NewsComment } from '../types';
+import { NewsPost, NewsComment, Profile } from '../types';
 
 interface NewsPageProps {
   news: NewsPost[];
+  isLoggedIn: boolean;
+  profile: Profile;
   onLike: (postId: string, increment: boolean) => void;
   onComment: (postId: string, comment: Omit<NewsComment, 'id' | 'date'>) => void;
+  onDeleteComment: (postId: string, commentId: string) => void;
 }
 
 interface DateFilter {
@@ -113,35 +116,96 @@ const Lightbox: React.FC<{ images: string[], current: string | null, onClose: ()
   );
 };
 
-const CommentSection: React.FC<{ post: NewsPost, onComment: (text: string) => void }> = ({ post, onComment }) => {
+const CommentSection: React.FC<{ post: NewsPost, isLoggedIn: boolean, adminName: string, onComment: (userName: string, text: string) => void, onDeleteComment: (id: string) => void }> = ({ post, isLoggedIn, adminName, onComment, onDeleteComment }) => {
   const [commentText, setCommentText] = useState('');
+  const [userName, setUserName] = useState(() => isLoggedIn ? adminName : (localStorage.getItem('commenter_name') || ''));
   const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (isLoggedIn) setUserName(adminName);
+  }, [isLoggedIn, adminName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
-    onComment(commentText);
+    if (!commentText.trim() || !userName.trim()) return;
+    if (!isLoggedIn) localStorage.setItem('commenter_name', userName);
+    onComment(userName, commentText);
     setCommentText('');
     setIsFocused(false);
   };
 
+  const renderComment = (comment: NewsComment, isReply = false) => (
+    <div key={comment.id} className={`flex gap-4 group ${isReply ? 'ml-12 mt-4 bg-slate-50 p-4 rounded-xl border-l-2 border-brand-500' : ''}`}>
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs shrink-0 shadow-sm uppercase ${comment.userName === adminName ? 'bg-brand-600 text-white' : 'bg-slate-100 border border-slate-200 text-slate-500'}`}>
+        {comment.userName.charAt(0)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <a 
+              href={`https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(comment.userName)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`text-xs font-black uppercase tracking-tight hover:text-brand-600 hover:underline transition-all ${comment.userName === adminName ? 'text-brand-600' : 'text-slate-900'}`}
+            >
+              {comment.userName} {comment.userName === adminName && <i className="fa-solid fa-circle-check text-[8px] ml-1"></i>}
+            </a>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">• {comment.date}</span>
+          </div>
+          {isLoggedIn && (
+            <button 
+              onClick={() => onDeleteComment(comment.id)}
+              className="text-[9px] font-black text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all uppercase tracking-widest"
+            >
+              <i className="fa-solid fa-trash-can mr-1"></i> Delete
+            </button>
+          )}
+        </div>
+        <p className={`text-sm leading-relaxed font-sans ${comment.userName === adminName ? 'text-slate-800 font-medium' : 'text-slate-700'}`}>
+          {comment.text}
+        </p>
+        
+        {/* Render Replies Recursive */}
+        {comment.replies && comment.replies.length > 0 && (
+          <div className="space-y-4">
+            {comment.replies.map(reply => renderComment(reply, true))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="mt-12 pt-8 border-t-2 border-slate-900 animate-in slide-in-from-bottom-4">
-      <h3 className="text-sm font-black uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
+      <h3 className="text-sm font-black uppercase tracking-[0.2em] mb-8 flex items-center gap-3 text-slate-900">
         <i className="fa-solid fa-comments text-brand-600"></i> {post.comments.length} Thoughts on this Dispatch
       </h3>
 
-      {/* Input Field (YouTube Style) */}
       <div className="flex gap-4 mb-10">
-        <div className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-lg">
-          V
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs shrink-0 shadow-lg ${isLoggedIn ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+          {userName.charAt(0) || 'U'}
         </div>
-        <form onSubmit={handleSubmit} className="flex-1">
+        <form onSubmit={handleSubmit} className="flex-1 space-y-3">
+          {!isLoggedIn ? (
+            <input 
+              type="text" 
+              placeholder="Your Name / Title"
+              value={userName}
+              onFocus={() => setIsFocused(true)}
+              onChange={(e) => setUserName(e.target.value)}
+              className="w-full sm:w-1/2 border-b border-slate-200 focus:border-brand-600 bg-transparent py-1 text-xs font-black uppercase tracking-widest outline-none transition-all"
+              required
+            />
+          ) : (
+            <div className="text-[10px] font-black uppercase tracking-widest text-brand-600 flex items-center gap-2">
+              <i className="fa-solid fa-shield-halved"></i> Posting as Administrator
+            </div>
+          )}
           <textarea
             value={commentText}
             onFocus={() => setIsFocused(true)}
             onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Add a comment..."
+            placeholder={isLoggedIn ? "Post an official system update..." : "Add your perspective..."}
             className="w-full border-b-2 border-slate-200 focus:border-slate-900 bg-transparent py-2 text-sm outline-none transition-all resize-none min-h-[40px] font-sans"
             rows={isFocused ? 3 : 1}
           />
@@ -156,34 +220,18 @@ const CommentSection: React.FC<{ post: NewsPost, onComment: (text: string) => vo
               </button>
               <button 
                 type="submit" 
-                disabled={!commentText.trim()}
+                disabled={!commentText.trim() || (!isLoggedIn && !userName.trim())}
                 className="px-6 py-2 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-600 transition-colors shadow-lg"
               >
-                Comment
+                {isLoggedIn ? 'Publish Update' : 'Post Comment'}
               </button>
             </div>
           )}
         </form>
       </div>
 
-      {/* Comment List */}
       <div className="space-y-8">
-        {post.comments.length > 0 ? [...post.comments].reverse().map((comment) => (
-          <div key={comment.id} className="flex gap-4 group">
-            <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-black text-xs shrink-0 shadow-sm uppercase">
-              {comment.userName.charAt(0)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-black uppercase tracking-tight text-slate-900">{comment.userName}</span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">• {comment.date}</span>
-              </div>
-              <p className="text-sm text-slate-700 leading-relaxed font-sans">
-                {comment.text}
-              </p>
-            </div>
-          </div>
-        )) : (
+        {post.comments.length > 0 ? [...post.comments].reverse().map((comment) => renderComment(comment)) : (
           <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl">
             <i className="fa-solid fa-comment-slash text-slate-300 text-3xl mb-4 block"></i>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Be the first to share your perspective</p>
@@ -194,7 +242,7 @@ const CommentSection: React.FC<{ post: NewsPost, onComment: (text: string) => vo
   );
 };
 
-const NewsPage: React.FC<NewsPageProps> = ({ news, onLike, onComment }) => {
+const NewsPage: React.FC<NewsPageProps> = ({ news, isLoggedIn, profile, onLike, onComment, onDeleteComment }) => {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [dateFilter, setDateFilter] = useState<DateFilter>({ year: null, month: null });
@@ -202,7 +250,6 @@ const NewsPage: React.FC<NewsPageProps> = ({ news, onLike, onComment }) => {
   const [activeShareId, setActiveShareId] = useState<string | null>(null);
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
 
-  // Toggle Like Logic
   const [userLikedPosts, setUserLikedPosts] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('user_liked_dispatches');
     return saved ? new Set(JSON.parse(saved)) : new Set();
@@ -379,10 +426,12 @@ const NewsPage: React.FC<NewsPageProps> = ({ news, onLike, onComment }) => {
               </div>
               <ActionButtons post={selectedPost} variant="single" />
               
-              {/* Integrated Comment Section Below the Post */}
               <CommentSection 
                 post={selectedPost} 
-                onComment={(text) => onComment(selectedPost.id, { userName: 'Verified Guest', text })} 
+                isLoggedIn={isLoggedIn}
+                adminName={profile.name}
+                onComment={(userName, text) => onComment(selectedPost.id, { userName, text })} 
+                onDeleteComment={(commentId) => onDeleteComment(selectedPost.id, commentId)}
               />
             </article>
           </div>

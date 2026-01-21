@@ -69,7 +69,7 @@ const App: React.FC = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [currentView, setCurrentView] = useState<'portfolio' | 'news'>('portfolio');
   const [isLoading, setIsLoading] = useState(true);
-  const [cloudStatus, setCloudStatus] = useState<{ ok: boolean; message: string }>({ ok: false, message: 'Initializing...' });
+  const [cloudStatus, setCloudStatus] = useState<{ ok: boolean; message: string }>({ ok: false, message: 'Initializing Session...' });
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
       return sessionStorage.getItem('is_admin_logged_in') === 'true';
@@ -87,7 +87,6 @@ const App: React.FC = () => {
 
   const fetchFromCloud = async (): Promise<PortfolioData | null> => {
     try {
-      // Prioritize freshness from the cloud
       const { data, error } = await supabase
         .from('portfolio_content')
         .select('content')
@@ -97,58 +96,36 @@ const App: React.FC = () => {
       if (error) throw error;
       return data?.content || null;
     } catch (err) {
-      console.error("Cloud fetch error:", err);
+      console.error("Cloud fetch failed:", err);
       return null;
     }
   };
 
   const initializeApp = async () => {
-    setIsLoading(true);
+    const backup = await getLocalBackup();
+    if (backup) {
+      setPortfolioData(backup);
+      setIsLoading(false);
+    }
 
     try {
-      // Step 1: Check Cloud Health & Fetch Fresh Data
-      const [freshData, health] = await Promise.all([
-        fetchFromCloud(),
-        checkCloudHealth()
-      ]);
+      const fetchPromise = fetchFromCloud();
+      const healthPromise = checkCloudHealth();
 
+      const [freshData, health] = await Promise.all([fetchPromise, healthPromise]);
       setCloudStatus(health);
 
       if (freshData) {
-        // SUCCESS: Cloud data found
-        setPortfolioData(freshData);
+        if (JSON.stringify(freshData) !== JSON.stringify(backup)) {
+          setPortfolioData(freshData);
+        }
         await setLocalBackup(freshData);
-        setIsLoading(false);
-        return;
-      }
-
-      // Step 2: If Cloud returns nothing (empty DB), Bootstrap it
-      if (health.ok && !freshData) {
-        setCloudStatus({ ok: true, message: 'Bootstrapping Database...' });
+      } else if (health.ok && !backup) {
         setPortfolioData(INITIAL_DATA);
-        // Save the initial data to cloud so it's permanent
-        await supabase
-          .from('portfolio_content')
-          .upsert({ id: 'main_config', content: INITIAL_DATA });
         await setLocalBackup(INITIAL_DATA);
-        setIsLoading(false);
-        return;
-      }
-
-      // Step 3: If Cloud is unreachable, try local backup
-      const backup = await getLocalBackup();
-      if (backup) {
-        setPortfolioData(backup);
-        setCloudStatus({ ok: false, message: 'Offline Mode (Local Cache)' });
-      } else {
-        // Absolute last resort
-        setPortfolioData(INITIAL_DATA);
-        setCloudStatus({ ok: false, message: 'Using Default Factory Data' });
       }
     } catch (err) {
-      console.error("Initialization error:", err);
-      const backup = await getLocalBackup();
-      setPortfolioData(backup || INITIAL_DATA);
+      console.error("Session background sync failed:", err);
     } finally {
       setIsLoading(false);
     }
@@ -163,30 +140,32 @@ const App: React.FC = () => {
 
   const persistData = async (newData: PortfolioData): Promise<boolean> => {
     try {
-      // Attempt cloud sync first
+      setPortfolioData(newData);
+      await setLocalBackup(newData);
+
       const { error } = await supabase
         .from('portfolio_content')
         .upsert({ id: 'main_config', content: newData }, { onConflict: 'id' });
       
-      if (error) throw error;
+      if (error) {
+        if (error.code === '57014') {
+            setCloudStatus({ ok: false, message: 'Update failed: Payload too large' });
+            return false;
+        }
+        setCloudStatus({ ok: false, message: `Sync Failure: ${error.message}` });
+        return false;
+      }
 
-      // Only update local state and backup on successful DB commit
-      setPortfolioData(newData);
-      await setLocalBackup(newData);
-      setCloudStatus({ ok: true, message: 'Changes Committed to Cloud' });
+      setCloudStatus({ ok: true, message: 'Cloud Synchronized' });
       return true;
     } catch (err: any) {
-      console.error("Persistence error:", err);
-      setCloudStatus({ ok: false, message: 'Cloud Sync Failed!' });
-      // Still update locally so user can continue, but warn them
-      setPortfolioData(newData);
-      await setLocalBackup(newData);
+      console.error("Cloud persist failed:", err);
+      setCloudStatus({ ok: false, message: 'Offline Persistence Active' });
       return false;
     }
   };
 
   const handleSave = async (newData: PortfolioData): Promise<boolean> => {
-    // Note: AdminPanel now handles its own closing based on this result
     return await persistData(newData);
   };
 
@@ -210,11 +189,14 @@ const App: React.FC = () => {
 
   const handleLikeNews = async (postId: string, increment: boolean) => {
     if (!portfolioData) return;
-    const updatedNews = portfolioData.news.map(post => 
-      post.id === postId 
-        ? { ...post, likes: Math.max(0, post.likes + (increment ? 1 : -1)) } 
-        : post
-    );
+    const updatedNews = portfolioData.news.map(post => {
+      if (post.id === postId) {
+        const currentLikes = post.likes || 0;
+        const newLikes = Math.max(0, currentLikes + (increment ? 1 : -1));
+        return { ...post, likes: newLikes };
+      }
+      return post;
+    });
     await persistData({ ...portfolioData, news: updatedNews });
   };
 
@@ -223,11 +205,32 @@ const App: React.FC = () => {
     const newComment: NewsComment = {
       ...comment,
       id: Date.now().toString(),
-      date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+      replies: []
     };
     const updatedNews = portfolioData.news.map(post => 
       post.id === postId ? { ...post, comments: [...post.comments, newComment] } : post
     );
+    await persistData({ ...portfolioData, news: updatedNews });
+  };
+
+  const handleDeleteNewsComment = async (postId: string, commentId: string) => {
+    if (!portfolioData || !isLoggedIn) return;
+    const updatedNews = portfolioData.news.map(post => {
+      if (post.id === postId) {
+        // Recursive deletion helper
+        const filterComments = (comments: NewsComment[]): NewsComment[] => {
+          return comments
+            .filter(c => c.id !== commentId)
+            .map(c => ({
+              ...c,
+              replies: c.replies ? filterComments(c.replies) : []
+            }));
+        };
+        return { ...post, comments: filterComments(post.comments) };
+      }
+      return post;
+    });
     await persistData({ ...portfolioData, news: updatedNews });
   };
 
@@ -245,17 +248,13 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-dark-900 flex flex-col items-center justify-center text-white p-6">
         <div className="relative mb-8">
-          <div className="w-20 h-20 border-4 border-brand-600/10 border-t-brand-600 rounded-full animate-spin"></div>
+          <div className="w-16 h-16 border-2 border-brand-600/10 border-t-brand-600 rounded-full animate-spin"></div>
           <div className="absolute inset-0 flex items-center justify-center">
-            <i className="fa-solid fa-cloud-arrow-down text-brand-500 text-xl animate-pulse"></i>
+            <i className="fa-solid fa-bolt-lightning text-brand-500 text-lg animate-pulse"></i>
           </div>
         </div>
-        <div className="space-y-4 w-full max-w-xs">
-          <div className="h-4 bg-slate-800 rounded-full w-full animate-pulse"></div>
-          <div className="h-4 bg-slate-800 rounded-full w-2/3 mx-auto animate-pulse"></div>
-        </div>
-        <p className="mt-8 text-slate-500 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">
-          Synchronizing with Master Database
+        <p className="text-slate-500 font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">
+          {cloudStatus.message}
         </p>
       </div>
     );
@@ -287,11 +286,23 @@ const App: React.FC = () => {
         ) : (
           <NewsPage 
             news={portfolioData.news} 
+            isLoggedIn={isLoggedIn}
+            profile={portfolioData.profile}
             onLike={handleLikeNews} 
             onComment={handleCommentNews} 
+            onDeleteComment={handleDeleteNewsComment}
           />
         )}
       </main>
+
+      {isLoggedIn && !isAdminOpen && (
+        <div className="fixed bottom-4 left-4 z-50 pointer-events-none">
+          <div className={`px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest border backdrop-blur-md shadow-xl transition-all duration-500 ${cloudStatus.ok ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+            <i className={`fa-solid ${cloudStatus.ok ? 'fa-cloud-check' : 'fa-cloud-exclamation'} mr-2`}></i>
+            {cloudStatus.message}
+          </div>
+        </div>
+      )}
 
       {isAdminOpen && (
         <AdminPanel 

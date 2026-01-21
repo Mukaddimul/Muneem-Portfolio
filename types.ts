@@ -50,6 +50,7 @@ export interface NewsComment {
   userName: string;
   text: string;
   date: string;
+  replies?: NewsComment[];
 }
 
 export interface NewsPost {
