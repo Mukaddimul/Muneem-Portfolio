@@ -331,43 +331,54 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
   };
 
   const renderCommentAdmin = (postId: string, comment: NewsComment, level = 0) => (
-    <div key={comment.id} className={`p-4 border border-slate-700/50 rounded-xl mb-4 bg-[#111827]/30 ${level > 0 ? 'ml-8 bg-slate-800/20' : ''}`}>
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-black uppercase tracking-widest ${comment.userName === editData.profile.name ? 'text-brand-500' : 'text-slate-400'}`}>
+    <div key={comment.id} className={`p-4 border border-slate-700/50 rounded-2xl mb-4 bg-[#111827]/30 group/comment ${level > 0 ? 'ml-10 bg-slate-800/10 border-l-2 border-l-brand-600' : ''}`}>
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex flex-col">
+          <span className={`text-xs font-black uppercase tracking-widest ${comment.userName === editData.profile.name ? 'text-brand-400' : 'text-slate-100'}`}>
             {comment.userName} {comment.userName === editData.profile.name && '(ADMIN)'}
           </span>
-          <span className="text-[9px] text-slate-600 font-bold">• {comment.date}</span>
+          <span className="text-[10px] text-slate-500 font-bold mt-0.5 uppercase tracking-tighter">{comment.date}</span>
         </div>
-        <button 
-          onClick={() => deleteCommentAdmin(postId, comment.id)}
-          className="text-red-500/50 hover:text-red-500 transition-colors"
-        >
-          <i className="fa-solid fa-trash-can text-[10px]"></i>
-        </button>
+        <div className="flex items-center gap-3 opacity-0 group-hover/comment:opacity-100 transition-opacity">
+          <button 
+            onClick={() => setReplyInputs(prev => ({ ...prev, [comment.id]: replyInputs[comment.id] !== undefined ? undefined : '' }))}
+            className="text-[10px] font-black uppercase text-brand-500 hover:text-brand-400 transition-colors tracking-widest"
+          >
+            Reply
+          </button>
+          <button 
+            onClick={() => deleteCommentAdmin(postId, comment.id)}
+            className="text-red-500 hover:text-red-400 transition-colors"
+          >
+            <i className="fa-solid fa-trash-can text-xs"></i>
+          </button>
+        </div>
       </div>
-      <p className="text-xs text-slate-300 leading-relaxed mb-3">{comment.text}</p>
+      <p className="text-xs text-slate-300 leading-relaxed mb-4">{comment.text}</p>
       
-      {/* Admin Reply Logic */}
-      <div className="flex gap-2">
-        <input 
-          type="text" 
-          placeholder="Official reply..."
-          value={replyInputs[comment.id] || ''}
-          onChange={(e) => setReplyInputs(prev => ({ ...prev, [comment.id]: e.target.value }))}
-          className="flex-1 bg-[#0f172a] border border-slate-700/50 rounded-lg px-3 py-1.5 text-[10px] text-white focus:border-brand-500 outline-none transition-all"
-        />
-        <button 
-          onClick={() => handleAdminReply(postId, comment.id)}
-          disabled={!replyInputs[comment.id]?.trim()}
-          className="bg-brand-600 disabled:opacity-30 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-brand-700 transition-all"
-        >
-          Reply
-        </button>
-      </div>
+      {/* Admin Reply Logic - Improved visibility */}
+      {replyInputs[comment.id] !== undefined && (
+        <div className="flex gap-2 mt-2 animate-in slide-in-from-top-1 duration-200">
+          <input 
+            type="text" 
+            placeholder="Write official response..."
+            value={replyInputs[comment.id] || ''}
+            onChange={(e) => setReplyInputs(prev => ({ ...prev, [comment.id]: e.target.value }))}
+            autoFocus
+            className="flex-1 bg-[#0f172a] border border-slate-700/50 rounded-xl px-4 py-2 text-xs text-white focus:border-brand-500 outline-none transition-all"
+          />
+          <button 
+            onClick={() => handleAdminReply(postId, comment.id)}
+            disabled={!replyInputs[comment.id]?.trim()}
+            className="bg-brand-600 disabled:opacity-30 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-700 transition-all shadow-lg active:scale-95"
+          >
+            Post
+          </button>
+        </div>
+      )}
 
       {comment.replies && comment.replies.length > 0 && (
-        <div className="mt-4">
+        <div className="mt-6">
           {comment.replies.map(r => renderCommentAdmin(postId, r, level + 1))}
         </div>
       )}
@@ -561,7 +572,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           </div>
         </section>
 
-        {/* 6. News Archive - Expanded with Comment Management */}
         <section id="admin-section-news" className="scroll-mt-24">
           <div className="flex items-center justify-between mb-14">
             <div><h2 className="text-4xl font-black text-white uppercase tracking-tight mb-2">NEWS ARCHIVE</h2><div className="h-[2px] w-48 bg-slate-800/60 hidden md:block"></div></div>
@@ -569,25 +579,107 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ data, onSave, onLogout, onClose
           </div>
           <div className="space-y-12">
             {editData.news.map((post, nIdx) => (
-              <div key={post.id} className="bg-[#1e293b]/20 p-10 md:p-14 rounded-[3rem] border border-slate-800/50 shadow-2xl relative group transition-all hover:bg-[#1e293b]/30">
+              <div key={post.id} className="bg-[#1e293b]/30 p-10 md:p-14 rounded-[3rem] border border-slate-800/50 shadow-2xl relative group transition-all hover:bg-[#1e293b]/40">
                 <button onClick={() => setEditData({...editData, news: editData.news.filter(p => p.id !== post.id)})} className="absolute top-10 right-10 text-red-500/60 hover:text-red-500 transition-colors"><i className="fa-solid fa-trash-can text-xl"></i></button>
-                <div className="space-y-8">
-                  <div><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 mb-4 block ml-2">HEADLINE</label><input value={post.title} onChange={(e) => { const n = [...editData.news]; n[nIdx].title = e.target.value; setEditData({...editData, news: n}); }} className="w-full bg-[#111827]/80 border-2 border-slate-800/40 rounded-2xl px-8 py-6 text-white font-black italic uppercase text-2xl tracking-tighter outline-none focus:border-brand-500/30 transition-all" /></div>
-                  <div><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 mb-4 block ml-2">ARTICLE CONTENT</label><textarea value={post.content} onChange={(e) => { const n = [...editData.news]; n[nIdx].content = e.target.value; setEditData({...editData, news: n}); }} rows={10} className="w-full bg-[#111827]/40 border-2 border-slate-800/40 rounded-[2.5rem] px-8 py-6 text-slate-300 font-bold text-sm leading-relaxed custom-scrollbar outline-none focus:border-brand-500/30 transition-all" /></div>
-                  
-                  {/* Photo Gallery Logic omitted for brevity as it hasn't changed */}
+                <div className="space-y-10">
+                  {/* Headline */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-2">HEADLINE</label>
+                    <input 
+                      value={post.title} 
+                      onChange={(e) => { const n = [...editData.news]; n[nIdx].title = e.target.value; setEditData({...editData, news: n}); }} 
+                      className="w-full bg-[#111827]/80 border-2 border-slate-800/60 rounded-2xl px-8 py-6 text-white font-black italic uppercase text-2xl tracking-tighter outline-none focus:border-brand-500/30 transition-all shadow-inner" 
+                    />
+                  </div>
 
-                  {/* Comment Oversight Interface */}
-                  <div className="mt-12 pt-10 border-t border-slate-800/50">
-                    <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-brand-500 mb-8 flex items-center gap-3">
-                      <i className="fa-solid fa-comments"></i> Comment Oversight ({post.comments.length})
-                    </h4>
-                    <div className="max-h-[500px] overflow-y-auto custom-scrollbar pr-4">
+                  {/* Author & Date Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-2">AUTHOR</label>
+                      <input 
+                        value={post.author} 
+                        onChange={(e) => { const n = [...editData.news]; n[nIdx].author = e.target.value; setEditData({...editData, news: n}); }} 
+                        className="w-full bg-[#111827]/80 border-2 border-slate-800/60 rounded-2xl px-8 py-5 text-white font-bold text-base outline-none focus:border-brand-500/30 transition-all shadow-inner" 
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-2">PUBLICATION DATE</label>
+                      <div className="relative">
+                        <input 
+                          type="date"
+                          value={post.date.split('T')[0]} 
+                          onChange={(e) => { const n = [...editData.news]; n[nIdx].date = new Date(e.target.value).toISOString(); setEditData({...editData, news: n}); }} 
+                          className="w-full bg-[#111827]/80 border-2 border-slate-800/60 rounded-2xl px-8 py-5 text-brand-400 font-bold text-base outline-none focus:border-brand-500/30 transition-all shadow-inner uppercase tracking-widest" 
+                        />
+                        <i className="fa-solid fa-calendar absolute right-8 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none"></i>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Article Content */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-2">ARTICLE CONTENT</label>
+                    <textarea 
+                      value={post.content} 
+                      onChange={(e) => { const n = [...editData.news]; n[nIdx].content = e.target.value; setEditData({...editData, news: n}); }} 
+                      rows={8} 
+                      className="w-full bg-[#111827]/80 border-2 border-slate-800/60 rounded-[2rem] px-8 py-6 text-slate-300 font-bold text-sm leading-relaxed custom-scrollbar outline-none focus:border-brand-500/30 transition-all shadow-inner" 
+                    />
+                  </div>
+                  
+                  {/* Photo Gallery - Matching Screenshot Thumbnails */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center px-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">PHOTO GALLERY</label>
+                      <span className="text-[10px] font-black text-slate-600">{(post.images || []).length} / 6</span>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                      {(post.images || []).map((img, idx) => (
+                        <div key={idx} className="relative group/img w-32 h-32">
+                          <img src={img} className="w-full h-full object-cover rounded-2xl border-2 border-slate-800 shadow-xl" />
+                          <button 
+                            onClick={() => deleteNewsImage(post.id, idx)}
+                            className="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-all shadow-lg scale-90 hover:scale-100"
+                          >
+                            <i className="fa-solid fa-xmark text-[10px]"></i>
+                          </button>
+                        </div>
+                      ))}
+                      {(post.images || []).length < 6 && (
+                        <div className="w-32 h-32 border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center relative hover:bg-slate-800/20 transition-all cursor-pointer group/add">
+                          <input 
+                            type="file" 
+                            className="absolute inset-0 opacity-0 cursor-pointer" 
+                            accept="image/*" 
+                            onChange={(e) => handleNewsPhotoUpload(post.id, e)}
+                          />
+                          <i className="fa-solid fa-plus text-slate-700 text-xl group-hover/add:scale-110 group-hover/add:text-brand-500 transition-all"></i>
+                          <span className="text-[8px] font-black uppercase text-slate-600 mt-2 tracking-widest">Add Photo</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* USER COMMENTS Section - Styled per request */}
+                  <div className="mt-14 pt-10 border-t-2 border-slate-800/50">
+                    <div className="flex justify-between items-center mb-10 px-2">
+                      <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-500 flex items-center gap-3">
+                        <i className="fa-solid fa-comments text-brand-600"></i> USER COMMENTS
+                      </h4>
+                      <div className="px-4 py-1.5 bg-slate-900/50 rounded-full border border-slate-800 text-[10px] font-black text-brand-500 tracking-widest">
+                        TOTAL: {post.comments.length}
+                      </div>
+                    </div>
+                    
+                    <div className="max-h-[600px] overflow-y-auto custom-scrollbar pr-4 space-y-4">
                       {post.comments.length > 0 ? (
-                        post.comments.map(c => renderCommentAdmin(post.id, c))
+                        [...post.comments].reverse().map(c => renderCommentAdmin(post.id, c))
                       ) : (
-                        <div className="text-center py-10 bg-slate-900/40 rounded-3xl border border-dashed border-slate-800">
-                          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">No dispatches from the field yet.</p>
+                        <div className="text-center py-20 bg-slate-900/40 rounded-[2rem] border-2 border-dashed border-slate-800/50">
+                          <div className="w-16 h-16 bg-slate-800/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i className="fa-solid fa-comment-slash text-slate-700 text-2xl"></i>
+                          </div>
+                          <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">No visitor dispatches yet.</p>
                         </div>
                       )}
                     </div>
